@@ -127,7 +127,7 @@ FILL_TOP, FILL_BOT = (132, 142, 111), (83, 91, 66)
 EDGE_TOP, EDGE_BOT = (58, 66, 48), (33, 38, 23)
 LAST_ROW = (88, 95, 70)
 BOTTOM = (15, 18, 8)
-GROOVE = (43, 48, 33)
+GROOVE = (30, 33, 21)
 LIP = (106, 113, 91)
 MOSS = [(103, 151, 96), (95, 139, 88), (73, 119, 68), (69, 113, 63)]
 GLOW_CORE = (48, 147, 65, 255)
@@ -152,8 +152,8 @@ GLYPH13 = [
 ]
 
 BIG = dict(w=26, h=30, ear=5, glyph=GLYPH18, off=(4, 7),
-           crack=[(18, 25), (19, 24), (20, 24), (21, 23)])
-SMALL = dict(w=19, h=21, ear=4, glyph=GLYPH13, off=(3, 5), crack=[])
+           crack=[(1, 4), (2, 4), (3, 5), (4, 5), (5, 6)])
+SMALL = dict(w=19, h=20, ear=4, glyph=GLYPH13, off=(3, 5), crack=[])
 
 
 def lerp(a, b, t):
@@ -330,12 +330,12 @@ def build_land(src):
     for (x, y), c in eglow.items():
         nglow.putpixel((ex + x, ey + y), c)
 
-    # keep the original rubble at the far left / right
-    for yy in range(H):
-        for xx in list(range(0, 16)) + list(range(228, W)):
-            p = land.getpixel((xx, yy))
-            if p[3] == 255:
-                new.putpixel((xx, yy), p)
+    # rubble: bring the portrait's bottom-corner pebbles along with DUNGEON
+    for yy in range(87, port.height):
+        for xx in range(port.width):
+            p = port.getpixel((xx, yy))
+            if p[3] == 255 and 0 <= yy + dy < H - 1:
+                new.putpixel((xx + dx, yy + dy), p)
 
     a_new = np.array(new)[:, :, 3]
     arr = np.zeros((H, W, 4), np.uint8)
@@ -345,7 +345,7 @@ def build_land(src):
     return out, nglow
 
 
-LAYOUT_L = dict(anki_y=2, card_y=0, card_gap=5)
+LAYOUT_L = dict(anki_y=2, card_y=1, card_gap=5)
 
 
 def build(src):

@@ -5,8 +5,10 @@ All art is hand-placed on a low-res pixel grid and integer-scaled with
 nearest neighbour.  Palette is sampled from SPD's own sprites
 (sprites/items.png scroll + sword tiles, and the original launcher background).
 
-  * foreground art: 24x24 master grid (card + sword)
-  * adaptive icon:  54x54 grid (108dp), x2/x3/x4/x6/x8 for mdpi..xxxhdpi
+  * foreground art: hand-placed on a 28x28 grid (adaptive) and a 24x24 grid
+                    (legacy) -- same design, see LAYOUT
+  * adaptive icon:  54x54 grid (108dp), x2/x3/x4/x6/x8 for mdpi..xxxhdpi;
+                    the 28px art sits at (14,14)
   * legacy icon:    24x24 grid, x2/x3/x4/x6/x8 for mdpi..xxxhdpi,
                     ldpi (36px) is a box-filtered downsample of hdpi (72px)
 
@@ -27,7 +29,9 @@ P_SH = (157, 136, 97)
 P_DK = (113, 94, 71)
 INK = (72, 58, 46)
 # card paper ramp: lit edge / body / shaded edge / darkest corner
-TOPLEFT, BODY, EDGE, SHADE = P_HI, P_HI, P_MID, P_LO
+TOPLEFT, BODY, EDGE, SHADE = P_HI, P_HI, P_LO, P_SH
+LOWC = P_MID
+SHADOW_A = 80  # alpha of the 1px drop shadow the art casts on the wall
 # steel (SPD sword blade / grip)
 S_HI = (255, 255, 255)
 S_MID = (201, 201, 201)
@@ -108,6 +112,8 @@ def card_layer(n):
                 c = TOPLEFT
             elif x == w - 2 or y == h - 2:
                 c = EDGE
+            elif y > L['glyph'][1] + len(L['glyph_px']):
+                c = LOWC   # lower paper below the glyph is a shade darker
             else:
                 c = BODY
             lay[(cx + x, cy + y)] = c
@@ -246,20 +252,28 @@ def stone(size, seed=7, vignette=True):
     return img
 
 
-def darken(img, f):
-    return img.point(lambda v: int(v * f))
-
-
 # ---------------------------------------------------------------- composition
 ADAPT = 54
 ART_N = 28
 ART_OFF = (ADAPT - ART_N) // 2 + 1  # +1: card mass is top-left heavy
 
 
-def adaptive_fg():
+def with_shadow(img):
+    """Add a 1px down-right drop shadow (translucent black) behind opaque art."""
+    out = Image.new('RGBA', img.size, (0, 0, 0, 0))
+    a = img.split()[3]
+    for y in range(img.height):
+        for x in range(img.width):
+            if a.getpixel((x, y)) == 0 and x > 0 and y > 0 and a.getpixel((x - 1, y - 1)) == 255:
+                out.putpixel((x, y), (0, 0, 0, SHADOW_A))
+    out.alpha_composite(img)
+    return out
+
+
+def adaptive_fg(shadow=True):
     fg = Image.new('RGBA', (ADAPT, ADAPT), (0, 0, 0, 0))
     fg.alpha_composite(art(ART_N), (ART_OFF, ART_OFF))
-    return fg
+    return with_shadow(fg) if shadow else fg
 
 
 def adaptive_bg():
@@ -267,17 +281,25 @@ def adaptive_bg():
 
 
 def monochrome():
-    fg = adaptive_fg()
-    a = fg.split()[3]
+    """Single-colour version for Android 13 themed icons.
+
+    Outline pixels and the glyph's ink become holes, so the card reads as a
+    card with an あ cut out of it and the sword is separated from the card by
+    a 1px gap instead of merging into one blob.
+    """
+    fg = adaptive_fg(shadow=False)
     mono = Image.new('RGBA', fg.size, (0, 0, 0, 0))
-    black = Image.new('RGBA', fg.size, (0, 0, 0, 255))
-    mono.paste(black, (0, 0), a)
+    for y in range(fg.height):
+        for x in range(fg.width):
+            p = fg.getpixel((x, y))
+            if p[3] == 255 and p[:3] not in (OUT, INK):
+                mono.putpixel((x, y), (0, 0, 0, 255))
     return mono
 
 
 def legacy24():
     bg = stone(24, seed=3).convert('RGBA')
-    bg.alpha_composite(art(24))
+    bg.alpha_composite(with_shadow(art(24)))
     # rounded corners (radius 2 grid px)
     mask = Image.new('L', (24, 24), 255)
     for (x, y) in [(0, 0), (1, 0), (0, 1)]:
