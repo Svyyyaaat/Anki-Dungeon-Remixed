@@ -2,7 +2,7 @@
 <resources>
 
     <!-- GENERAL STRINGS VARIABLES -->
-    <string name="app_name" translatable="false">Remixed Dungeon</string>
+    <string name="app_name" translatable="false">Anki Dungeon</string>
 
     <!-- STRINGS OF Assets CLASS -->
     <string name="Assets_Prefix" translatable="false">""</string>

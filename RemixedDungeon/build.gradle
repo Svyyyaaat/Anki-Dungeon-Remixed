@@ -37,7 +37,7 @@ android {
 
         manifestPlaceholders = ["admob_app_id":getApiField("admob_app_id")]
 
-        applicationId "com.nyrds.pixeldungeon.ml"
+        applicationId "com.ankidungeon.game"
         versionCode versionProps['VERSION_CODE'].toInteger()
         versionName versionProps['VERSION_NAME']
         targetSdkVersion 36
