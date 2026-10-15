@@ -51,7 +51,7 @@ INK = {'red': (179, 0, 30), 'black': (41, 30, 0)}
 # background stone (original SPD ic_launcher_background colours)
 BG = [(53, 52, 49), (59, 58, 54), (70, 69, 65), (76, 75, 71), (79, 78, 74), (83, 82, 78)]
 
-STYLE = dict(wood='green', frame='brightgreen', ink='black', trim=False)
+STYLE = dict(wood='green', frame='red', ink='black', trim=False)
 
 # ---------------------------------------------------------------- glyph
 # hand-pixelled bold hiragana A, 2px strokes (12x13). Designed on the grid,

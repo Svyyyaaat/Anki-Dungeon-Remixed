@@ -68,6 +68,10 @@ html, body {
     white-space: nowrap;
 }
 
+#title.bad {
+    color: var(--bad);
+}
+
 #clock {
     flex: 1;
     height: 10px;
@@ -82,6 +86,13 @@ html, body {
     background: var(--good);
 }
 
+/* back / bury / suspend: kept away from the answer buttons on purpose */
+#tools {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
 #content {
     flex: 1 1 auto;
     overflow-y: auto;
@@ -94,6 +105,14 @@ html, body {
 
 #answer {
     display: none;
+}
+
+#note {
+    display: none;
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--muted);
+    text-align: center;
 }
 
 #foot {
@@ -119,6 +138,14 @@ html, body {
     border-image: url("button.png") 2 fill / 6px stretch;
     image-rendering: pixelated;
     text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+    transition: opacity 0.15s;
+}
+
+/* the game's grey button chrome (Chrome.Type.GREY_BUTTON) */
+.btn.grey {
+    min-height: 36px;
+    font-size: 15px;
+    border-image: url("button_grey.png") 2 fill / 6px stretch;
 }
 
 .btn:active {
@@ -131,15 +158,23 @@ html, body {
     color: #ffd9c8;
 }
 
+/* not usable right now (wrong side, nothing to undo, ...) */
+.btn:disabled {
+    opacity: 0.35;
+    filter: grayscale(1);
+}
+
+/* briefly locked after the card changes, against accidental taps */
+.locked .btn {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
 #honesty {
     margin-top: 8px;
     font-size: 13px;
     color: var(--muted);
     text-align: center;
-}
-
-#status {
-    color: var(--bad);
 }
 
 .missing-media {
@@ -165,10 +200,16 @@ html, body {
             <span id="title"></span>
             <div id="clock"><div id="clock-fill"></div></div>
         </div>
+        <div id="tools">
+            <button class="btn grey" id="btn-back">Back</button>
+            <button class="btn grey" id="btn-bury">Bury</button>
+            <button class="btn grey" id="btn-suspend">Suspend</button>
+        </div>
         <div id="content">
             <div id="question" class="card">%%QUESTION%%</div>
             <div id="answer" class="card">%%ANSWER%%</div>
         </div>
+        <div id="note"></div>
         <div id="foot">
             <div id="buttons"></div>
             <div id="honesty">Thou shalt answer honestly &mdash; or else just play the normal game.</div>
@@ -177,9 +218,26 @@ html, body {
 </div>
 <script>
 var CONFIG = %%CONFIG%%;
+
+// how long buttons ignore taps after the card changes
+var LOCK_MS = 600;
+
 var revealed = false;
+var timedOut = false;
+var lockTimer = null;
 
 function el(id) { return document.getElementById(id); }
+
+function lock() {
+    var panel = el("panel");
+    panel.classList.add("locked");
+    clearTimeout(lockTimer);
+    lockTimer = setTimeout(function () { panel.classList.remove("locked"); }, LOCK_MS);
+}
+
+function isLocked() {
+    return el("panel").classList.contains("locked");
+}
 
 function button(label, sub, onClick) {
     var b = document.createElement("button");
@@ -190,7 +248,11 @@ function button(label, sub, onClick) {
         s.textContent = sub;
         b.appendChild(s);
     }
-    b.addEventListener("click", onClick);
+    b.addEventListener("click", function () {
+        if (!isLocked()) {
+            onClick();
+        }
+    });
     return b;
 }
 
@@ -200,24 +262,40 @@ function setButtons(list) {
     list.forEach(function (b) { box.appendChild(b); });
 }
 
+function updateTools() {
+    // back: answer side -> question; question side -> undo the last bury/suspend
+    el("btn-back").disabled = timedOut || (!revealed && !CONFIG.canUndo);
+    el("btn-bury").disabled = timedOut;
+    el("btn-suspend").disabled = timedOut;
+}
+
+function note(text) {
+    var n = el("note");
+    n.textContent = text || "";
+    n.style.display = text ? "block" : "none";
+}
+
+/* clock: drains from (limit - elapsed) to 0 */
+function runClock(elapsedMs) {
+    var fill = el("clock-fill");
+    var left = Math.max(0, CONFIG.thinkMs - elapsedMs);
+    var frac = left / CONFIG.thinkMs;
+    fill.style.transition = "none";
+    fill.style.width = (frac * 100) + "%";
+    fill.style.backgroundColor = frac > 0.5 ? "#7fd36a" : "#e0a84a";
+    fill.offsetWidth; // apply the start state before animating
+    fill.style.transition = "width " + left + "ms linear, background-color " + left + "ms linear";
+    fill.style.width = "0%";
+    fill.style.backgroundColor = "#e05a4a";
+}
+
 function freezeClock() {
     var fill = el("clock-fill");
     var w = getComputedStyle(fill).width;
+    var c = getComputedStyle(fill).backgroundColor;
     fill.style.transition = "none";
     fill.style.width = w;
-}
-
-function showAnswer() {
-    revealed = true;
-    freezeClock();
-    el("question").style.display = "none";
-    el("answer").style.display = "block";
-    el("content").scrollTop = 0;
-}
-
-function grade(ease) {
-    setButtons([]);
-    AnkiBridge.grade(ease);
+    fill.style.backgroundColor = c;
 }
 
 function gradeButtons() {
@@ -236,25 +314,74 @@ function gradeButtons() {
     }
 }
 
+function questionButtons() {
+    setButtons([button("Show answer", null, reveal)]);
+}
+
+function grade(ease) {
+    setButtons([]);
+    AnkiBridge.grade(ease);
+}
+
+function showAnswerSide() {
+    revealed = true;
+    freezeClock();
+    el("question").style.display = "none";
+    el("answer").style.display = "block";
+    el("content").scrollTop = 0;
+    updateTools();
+    lock();
+}
+
 function reveal() {
     if (revealed) {
         return;
     }
     AnkiBridge.reveal();
-    showAnswer();
+    showAnswerSide();
     gradeButtons();
 }
 
-// called by the game when the thinking time runs out
+/* called by the game after Back on the answer side; the clock resumes where it stopped */
+function showQuestion(elapsedMs) {
+    revealed = false;
+    el("answer").style.display = "none";
+    el("question").style.display = "block";
+    el("content").scrollTop = 0;
+    note("");
+    runClock(elapsedMs);
+    questionButtons();
+    updateTools();
+    lock();
+}
+
+/* called by the game when the thinking time runs out */
 function timeUp() {
     if (revealed) {
         return;
     }
-    showAnswer();
+    timedOut = true;
+    showAnswerSide();
     var title = el("title");
-    title.id = "status";
+    title.className = "bad";
     title.textContent = "Time's up!";
     setButtons([button("Continue", "counts as Again", function () { grade(1); })]);
+}
+
+/* called by the game when a bury/suspend had no other card to switch to */
+function noOtherCards() {
+    note("No other cards are due right now.");
+    if (revealed) {
+        gradeButtons();
+    } else {
+        questionButtons();
+    }
+    updateTools();
+}
+
+function busy() {
+    setButtons([]);
+    ["btn-back", "btn-bury", "btn-suspend"].forEach(function (id) { el(id).disabled = true; });
 }
 
 (function init() {
@@ -263,24 +390,45 @@ function timeUp() {
     // AnkiDroid's media folder isn't reachable from here
     Array.prototype.forEach.call(document.querySelectorAll("img"), function (img) {
         img.addEventListener("error", function () {
-            var note = document.createElement("span");
-            note.className = "missing-media";
-            note.textContent = "[image]";
-            img.replaceWith(note);
+            var span = document.createElement("span");
+            span.className = "missing-media";
+            span.textContent = "[image]";
+            img.replaceWith(span);
         });
     });
 
-    var fill = el("clock-fill");
+    el("btn-back").addEventListener("click", function () {
+        if (isLocked() || this.disabled) {
+            return;
+        }
+        if (revealed) {
+            AnkiBridge.back();
+        } else {
+            busy();
+            AnkiBridge.undoSkip();
+        }
+    });
+    el("btn-bury").addEventListener("click", function () {
+        if (isLocked() || this.disabled) {
+            return;
+        }
+        busy();
+        AnkiBridge.skip("bury");
+    });
+    el("btn-suspend").addEventListener("click", function () {
+        if (isLocked() || this.disabled) {
+            return;
+        }
+        busy();
+        AnkiBridge.skip("suspend");
+    });
+
     requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-            fill.style.transition = "width " + CONFIG.thinkMs + "ms linear, background-color " + CONFIG.thinkMs + "ms linear";
-            fill.style.width = "0%";
-            fill.style.backgroundColor = "#e05a4a";
-        });
+        runClock(CONFIG.startElapsedMs || 0);
     });
-
-    setButtons([button("Show answer", null, reveal)]);
-    el("content").addEventListener("click", reveal);
+    questionButtons();
+    updateTools();
+    lock();
 })();
 </script>
 </body>

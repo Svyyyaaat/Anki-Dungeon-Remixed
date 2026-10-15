@@ -30,8 +30,10 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
@@ -188,32 +190,119 @@ public class AnkiDroidBridge implements AnkiPlatform {
         });
     }
 
+    /** A card skipped with bury/suspend; applied in AnkiDroid only once the check is graded. */
+    private static class Skipped {
+        final CardRef card;
+        final String action;
+        final long elapsedMs;
+
+        Skipped(CardRef card, String action, long elapsedMs) {
+            this.card = card;
+            this.action = action;
+            this.elapsedMs = elapsedMs;
+        }
+    }
+
+    /** One flashcard check: the card on screen plus the cards skipped on the way to it. */
+    private class Session implements CardOverlay.Listener {
+        final long deckId;
+        final CardRequest request;
+        final Consumer<CardOutcome> onDone;
+        final ArrayDeque<Skipped> skipped = new ArrayDeque<>();
+        CardRef current;
+
+        Session(long deckId, CardRequest request, Consumer<CardOutcome> onDone) {
+            this.deckId = deckId;
+            this.request = request;
+            this.onDone = onDone;
+        }
+
+        private Set<String> shownKeys() {
+            Set<String> keys = new HashSet<>();
+            keys.add(current.key());
+            for (Skipped s : skipped) {
+                keys.add(s.card.key());
+            }
+            return keys;
+        }
+
+        @Override
+        public void onGraded(int ease, long thinkMs, long totalMs, boolean timedOut) {
+            final CardRef graded = current;
+            final ArrayDeque<Skipped> toApply = new ArrayDeque<>(skipped);
+            io.execute(() -> {
+                // AnkiDroid's API can't undo a bury/suspend, so they wait until the check is over
+                for (Skipped s : toApply) {
+                    buryOrSuspend(s.card, s.action);
+                }
+                answer(graded, ease, totalMs);
+            });
+            post(() -> onDone.accept(CardOutcome.answered(ease, thinkMs, timedOut)));
+        }
+
+        @Override
+        public void onSkip(String action, long elapsedMs) {
+            io.execute(() -> {
+                try {
+                    CardRef next = nextCard(deckId, shownKeys());
+                    if (next == null) {
+                        onUiThread(CardOverlay::noOtherCards);
+                        return;
+                    }
+                    skipped.push(new Skipped(current, action, elapsedMs));
+                    current = next;
+                    lastCardKey = next.key();
+                    String page = render(next, request, 0, true);
+                    onUiThread(() -> CardOverlay.replace(page, 0));
+                } catch (Exception e) {
+                    Log.e(TAG, "loading the next card failed", e);
+                    onUiThread(CardOverlay::noOtherCards);
+                }
+            });
+        }
+
+        @Override
+        public void onUndoSkip() {
+            io.execute(() -> {
+                Skipped back = skipped.poll();
+                if (back == null) {
+                    onUiThread(CardOverlay::noOtherCards);
+                    return;
+                }
+                try {
+                    current = back.card;
+                    lastCardKey = back.card.key();
+                    String page = render(back.card, request, back.elapsedMs, !skipped.isEmpty());
+                    onUiThread(() -> CardOverlay.replace(page, back.elapsedMs));
+                } catch (Exception e) {
+                    Log.e(TAG, "reloading a skipped card failed", e);
+                    onUiThread(CardOverlay::noOtherCards);
+                }
+            });
+        }
+    }
+
     @Override
     public void presentCard(long deckId, CardRequest request, Consumer<CardOutcome> onDone) {
         io.execute(() -> {
+            Session session = new Session(deckId, request, onDone);
             String html;
-            CardRef card;
             try {
-                card = nextCard(deckId);
-                if (card == null) {
+                session.current = nextCard(deckId, new HashSet<>());
+                if (session.current == null) {
                     post(() -> onDone.accept(CardOutcome.noCards()));
                     return;
                 }
-                html = render(card, request);
+                html = render(session.current, request, 0, false);
             } catch (Exception e) {
                 Log.e(TAG, "loading a card failed", e);
                 post(() -> onDone.accept(CardOutcome.error()));
                 return;
             }
 
-            lastCardKey = card.key();
-            final CardRef shown = card;
+            lastCardKey = session.current.key();
             final String page = html;
-            onUiThread(() -> CardOverlay.show(activity, page, request.thinkTimeMs,
-                    (ease, thinkMs, totalMs, timedOut) -> {
-                        io.execute(() -> answer(shown, ease, totalMs));
-                        post(() -> onDone.accept(CardOutcome.answered(ease, thinkMs, timedOut)));
-                    }));
+            onUiThread(() -> CardOverlay.show(activity, page, request.thinkTimeMs, session));
         });
     }
 
@@ -268,13 +357,17 @@ public class AnkiDroidBridge implements AnkiPlatform {
 
     // --- provider access (io thread only)
 
-    private CardRef nextCard(long deckId) {
+    /** Next due card that isn't already part of this check ({@code exclude}), else a learned-new one. */
+    private CardRef nextCard(long deckId, Set<String> exclude) {
         List<CardRef> due = new ArrayList<>();
         try (Cursor c = resolver().query(SCHEDULE, null, "limit=?,deckID=?",
-                new String[]{"3", Long.toString(deckId)}, null)) {
+                new String[]{Integer.toString(exclude.size() + 3), Long.toString(deckId)}, null)) {
             while (c != null && c.moveToNext()) {
-                due.add(new CardRef(c.getLong(c.getColumnIndexOrThrow("note_id")),
-                        c.getInt(c.getColumnIndexOrThrow("ord"))));
+                CardRef card = new CardRef(c.getLong(c.getColumnIndexOrThrow("note_id")),
+                        c.getInt(c.getColumnIndexOrThrow("ord")));
+                if (!exclude.contains(card.key())) {
+                    due.add(card);
+                }
             }
         }
         // don't show the card just answered again right away if anything else is due
@@ -286,11 +379,18 @@ public class AnkiDroidBridge implements AnkiPlatform {
         if (!due.isEmpty()) {
             return due.get(0);
         }
-        long[] fresh = extraNew.poll();
-        return fresh == null ? null : new CardRef(fresh[0], (int) fresh[1]);
+        long[] fresh;
+        while ((fresh = extraNew.poll()) != null) {
+            CardRef card = new CardRef(fresh[0], (int) fresh[1]);
+            if (!exclude.contains(card.key())) {
+                return card;
+            }
+        }
+        return null;
     }
 
-    private String render(CardRef card, CardRequest request) throws Exception {
+    private String render(CardRef card, CardRequest request, long startElapsedMs, boolean canUndo)
+            throws Exception {
         Uri noteUri = Uri.withAppendedPath(NOTES, Long.toString(card.noteId));
         Uri cardUri = Uri.withAppendedPath(Uri.withAppendedPath(noteUri, "cards"), Integer.toString(card.ord));
 
@@ -315,6 +415,8 @@ public class AnkiDroidBridge implements AnkiPlatform {
         config.put("title", request.title);
         config.put("thinkMs", request.thinkTimeMs);
         config.put("simple", request.simpleGrading);
+        config.put("startElapsedMs", startElapsedMs);
+        config.put("canUndo", canUndo);
 
         return template()
                 .replace("%%CONFIG%%", config.toString())
@@ -344,6 +446,18 @@ public class AnkiDroidBridge implements AnkiPlatform {
             return "";
         }
         return SOUND_TAG.matcher(html).replaceAll("");
+    }
+
+    private void buryOrSuspend(CardRef card, String action) {
+        ContentValues values = new ContentValues();
+        values.put("note_id", card.noteId);
+        values.put("ord", card.ord);
+        values.put(CardOverlay.SUSPEND.equals(action) ? "suspended" : "buried", 1);
+        try {
+            resolver().update(SCHEDULE, values, null, null);
+        } catch (Exception e) {
+            Log.e(TAG, action + " of card " + card.key() + " failed", e);
+        }
     }
 
     private void answer(CardRef card, int ease, long totalMs) {

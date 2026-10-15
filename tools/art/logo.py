@@ -16,9 +16,9 @@ cracks are native:
 The glow layer pixels travel with their letters.  The soft drop shadow around
 the new letters is regenerated with a model fitted to the original halo
 (mask shifted 1px down, gaussian r=1.0, x1.5 -> mean error ~7/255).
-An Isaac-style flashcard (green frame, cream face, near-black hand-pixelled あ, in the
+An Isaac-style flashcard (red frame, cream face, near-black hand-pixelled あ, in the
 letters' bevel treatment) sits on top (portrait) / to the left (landscape);
-its あ pulses green in the glow layer like the runes.
+its あ smoulders ember-red in the glow layer.
 
 Usage: python3 logo.py [--src ORIGINAL_banners.png] [--out banners.png] [--preview DIR]
 The original SPD banners.png is kept next to this script
@@ -94,6 +94,32 @@ def letters(port, pglow):
     return L
 
 
+# Letter spacing for CRAM, as the gap between neighbouring letters' boxes.
+# Measured on SPD's DUNGEON: neighbouring straight stems sit 1px apart
+# (closest point 0-1px, row-average ~2px), and the open-sided G keeps its
+# arms 1-2px from the E.  So:
+#   C-R  1: the C's arms end 2px (top) / 1px (bottom) from the R stem, exactly
+#        the G-E relationship; any tighter and the arms fuse with the R
+#   R-A  2: R's kicked leg and A's foot would otherwise nearly touch at the
+#        baseline, which is what made R/A/M look crowded; 2px at the feet
+#   A-M  1: A's right foot ends 2px from M's stem
+WORD = ['C', 'R', 'A', 'M']
+KERN = {('C', 'R'): 1, ('R', 'A'): 2, ('A', 'M'): 1}
+
+
+def word_layout(L, x0, x1):
+    """[(letter, x)] for CRAM, optically spaced and centred on x0..x1."""
+    xs, x = [], 0
+    for i, c in enumerate(WORD):
+        xs.append(x)
+        if i + 1 < len(WORD):
+            x += width(L[c]) + KERN[(c, WORD[i + 1])]
+    lo = min(xs[i] + min(p[0] for p in L[c]) for i, c in enumerate(WORD))
+    hi = max(xs[i] + max(p[0] for p in L[c]) for i, c in enumerate(WORD))
+    shift = (x0 + x1 - (lo + hi) + 1) // 2
+    return [(c, xx + shift) for c, xx in zip(WORD, xs)]
+
+
 def shadow(mask_alpha):
     """Original-logo style soft shadow from a binary mask (uint8 0/255)."""
     h, w = mask_alpha.shape
@@ -138,19 +164,20 @@ GLYPH18 = [
 HILITE = (212, 219, 200)
 BOTTOM = (15, 18, 8)
 EDGE_DARK = (33, 38, 23)
-# Isaac-style card: green frame (SPD chest greens / the logo's rune green,
-# same as the launcher icon's card) + cream face (scroll parchment)
-FR_HI = (105, 187, 119)
-FR_TOP, FR_BOT = (27, 156, 27), (14, 79, 14)
-FR_EDGE = (10, 61, 10)
+# Isaac-style card: red frame (items.png reds, same as the launcher icon's
+# card) + cream face (scroll parchment)
+FR_HI = (224, 73, 73)
+FR_TOP, FR_BOT = (179, 0, 30), (128, 30, 10)
+FR_EDGE = (80, 26, 26)
 FACE_TOP, FACE_BOT = (255, 244, 208), (217, 201, 161)
 FACE_RIM = (157, 136, 97)       # inner bevel: shadowed top/left of the recessed face
 FACE_LIP = (255, 248, 215)      # lit bottom edge of the recess
 INK = (41, 30, 0)               # same near-black ink as the launcher icon
-# glow layer: the あ pulses in the same green as the runes on the letters
-# (the "signs" layer is drawn additively with an animated alpha)
-GLOW_CORE = (48, 147, 65, 255)
-GLOW_HALO = (48, 147, 65, 51)
+# glow layer: the "signs" layer is drawn ADDITIVELY with an animated alpha.
+# The あ smoulders like an ember: near-black ink + core -> deep orange-red at
+# the peak; the faint halo only warms the cream face and the red frame.
+GLOW_CORE = (200, 60, 15, 255)
+GLOW_HALO = (120, 20, 0, 60)
 
 # bold 12x13 あ (same design as the launcher icon card), drawn at 2x for the
 # big landscape card so it reads like a card-suit symbol
@@ -265,14 +292,9 @@ def build_port(src):
     new = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     nglow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
 
-    gap = 1
-    word = ['C', 'R', 'A', 'M']
-    total = sum(width(L[c]) for c in word) + gap * (len(word) - 1)
-    x = (W - total) // 2
-    y = LAYOUT['word_y']
-    for c in word:
-        place(new, nglow, L[c], x, y)
-        x += width(L[c]) + gap
+    # CRAM centred over DUNGEON (opaque extent x 3..135)
+    for c, x in word_layout(L, 3, 135):
+        place(new, nglow, L[c], x, LAYOUT['word_y'])
 
     # emblem
     stamp(new, nglow, (W - CARD['w']) // 2, LAYOUT['card_y'])
@@ -334,14 +356,9 @@ def build_land(src):
                 nglow.putpixel((xx + dx, yy + dy), g)
 
     # line 1: CRAM centred over DUNGEON
-    gap = 1
-    word = ['C', 'R', 'A', 'M']
-    total = sum(width(L[c]) for c in word) + gap * (len(word) - 1)
     dun_x0, dun_x1 = 3 + dx, 135 + dx       # DUNGEON's opaque extent (portrait x 3..135)
-    x = (dun_x0 + dun_x1 + 1 - total) // 2
-    for c in word:
+    for c, x in word_layout(L, dun_x0, dun_x1):
         place(new, nglow, L[c], x, LAYOUT_L['word_y'])
-        x += width(L[c]) + gap
     # the card stands to the left of both lines, vertically centred on them
     stamp(new, nglow, dun_x0 - LAYOUT_L['card_gap'] - CARD_L['w'], LAYOUT_L['card_y'], CARD_L)
 

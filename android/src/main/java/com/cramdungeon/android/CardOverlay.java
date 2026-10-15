@@ -15,14 +15,25 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 /**
- * Shows one card in a WebView laid over the game surface. Only touched from the
- * Android UI thread. The thinking clock keeps running if the app is left.
+ * Shows cards in a WebView laid over the game surface. One overlay session can
+ * go through several cards (bury/suspend bring a new one, back brings one back)
+ * and ends when a card is graded. Only touched from the Android UI thread. The
+ * thinking clock keeps running if the app is left.
  */
 final class CardOverlay {
 
     interface Listener {
         void onGraded(int ease, long thinkMs, long totalMs, boolean timedOut);
+
+        /** "bury" or "suspend"; {@code elapsedMs} is the clock of the card being skipped. */
+        void onSkip(String action, long elapsedMs);
+
+        /** Bring back the card skipped last. */
+        void onUndoSkip();
     }
+
+    static final String BURY = "bury";
+    static final String SUSPEND = "suspend";
 
     private static final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -31,11 +42,14 @@ final class CardOverlay {
     private static Listener listener;
 
     private static long thinkLimitMs;
+    // the clock: elapsed thinking time is now - shownAt while the question is up
     private static long shownAt;
     private static long thinkMs;
     private static boolean revealed;
     private static boolean timedOut;
     private static boolean finished;
+    // waiting for the next card after a bury/suspend/undo
+    private static boolean busy;
 
     private static final Runnable timeout = CardOverlay::onTimeout;
 
@@ -43,15 +57,12 @@ final class CardOverlay {
     }
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
-    static void show(Activity activity, String html, long thinkLimit, Listener onGraded) {
+    static void show(Activity activity, String html, long thinkLimit, Listener onEvents) {
         dismiss();
 
-        listener = onGraded;
+        listener = onEvents;
         thinkLimitMs = thinkLimit;
-        revealed = false;
-        timedOut = false;
         finished = false;
-        shownAt = SystemClock.elapsedRealtime();
 
         web = new WebView(activity);
         web.setBackgroundColor(Color.TRANSPARENT);
@@ -66,7 +77,7 @@ final class CardOverlay {
                 scheduleTimeout();
             }
         });
-        // the card decides; back does nothing while it is up
+        // the card has to be answered; back does nothing while it is up
         web.setOnKeyListener((v, keyCode, event) -> keyCode == KeyEvent.KEYCODE_BACK);
         web.setFocusableInTouchMode(true);
 
@@ -75,26 +86,53 @@ final class CardOverlay {
         root.addView(web, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        attach(activity);
-        web.loadDataWithBaseURL("file:///android_asset/anki/", html, "text/html", "utf-8", null);
+        if (root.getParent() instanceof ViewGroup) {
+            ((ViewGroup) root.getParent()).removeView(root);
+        }
+        activity.addContentView(root, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        load(html, 0);
         web.requestFocus();
+    }
+
+    /** Swaps in another card of the same session, its clock starting at {@code elapsedMs}. */
+    static void replace(String html, long elapsedMs) {
+        if (web == null || finished) {
+            return;
+        }
+        load(html, elapsedMs);
+    }
+
+    /** A bury/suspend found nothing else to show; the current card stays. */
+    static void noOtherCards() {
+        busy = false;
+        if (web != null) {
+            web.evaluateJavascript("noOtherCards()", null);
+        }
     }
 
     static boolean isShowing() {
         return root != null;
     }
 
-    private static void attach(Activity activity) {
-        if (root.getParent() instanceof ViewGroup) {
-            ((ViewGroup) root.getParent()).removeView(root);
-        }
-        activity.addContentView(root, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    private static void load(String html, long elapsedMs) {
+        handler.removeCallbacks(timeout);
+        shownAt = SystemClock.elapsedRealtime() - elapsedMs;
+        thinkMs = 0;
+        revealed = false;
+        timedOut = false;
+        busy = false;
+        web.loadDataWithBaseURL("file:///android_asset/anki/", html, "text/html", "utf-8", null);
+    }
+
+    private static long elapsed() {
+        return Math.min(thinkLimitMs, SystemClock.elapsedRealtime() - shownAt);
     }
 
     private static void scheduleTimeout() {
         handler.removeCallbacks(timeout);
-        if (revealed || finished) {
+        if (revealed || finished || busy) {
             return;
         }
         long left = thinkLimitMs - (SystemClock.elapsedRealtime() - shownAt);
@@ -102,7 +140,7 @@ final class CardOverlay {
     }
 
     private static void onTimeout() {
-        if (revealed || finished || web == null) {
+        if (revealed || finished || busy || web == null) {
             return;
         }
         revealed = true;
@@ -112,16 +150,45 @@ final class CardOverlay {
     }
 
     private static void onReveal() {
-        if (revealed || finished) {
+        if (revealed || finished || busy) {
             return;
         }
         revealed = true;
-        thinkMs = Math.min(thinkLimitMs, SystemClock.elapsedRealtime() - shownAt);
+        thinkMs = elapsed();
         handler.removeCallbacks(timeout);
     }
 
+    /** Answer side back to the question; the clock carries on from where it stopped. */
+    private static void onBackToQuestion() {
+        if (!revealed || timedOut || finished || busy || web == null) {
+            return;
+        }
+        revealed = false;
+        shownAt = SystemClock.elapsedRealtime() - thinkMs;
+        scheduleTimeout();
+        web.evaluateJavascript("showQuestion(" + thinkMs + ")", null);
+    }
+
+    private static void onSkip(String action) {
+        if (finished || busy || timedOut || listener == null) {
+            return;
+        }
+        busy = true;
+        handler.removeCallbacks(timeout);
+        listener.onSkip(action, revealed ? thinkMs : elapsed());
+    }
+
+    private static void onUndoSkip() {
+        if (finished || busy || revealed || listener == null) {
+            return;
+        }
+        busy = true;
+        handler.removeCallbacks(timeout);
+        listener.onUndoSkip();
+    }
+
     private static void onGrade(int ease) {
-        if (finished || listener == null) {
+        if (finished || busy || listener == null) {
             return;
         }
         if (!revealed) {
@@ -145,6 +212,7 @@ final class CardOverlay {
         root = null;
         web = null;
         listener = null;
+        busy = false;
     }
 
     private static class Bridge {
@@ -156,6 +224,23 @@ final class CardOverlay {
         @JavascriptInterface
         public void grade(int ease) {
             handler.post(() -> onGrade(ease));
+        }
+
+        @JavascriptInterface
+        public void back() {
+            handler.post(CardOverlay::onBackToQuestion);
+        }
+
+        @JavascriptInterface
+        public void undoSkip() {
+            handler.post(CardOverlay::onUndoSkip);
+        }
+
+        @JavascriptInterface
+        public void skip(String action) {
+            if (BURY.equals(action) || SUSPEND.equals(action)) {
+                handler.post(() -> onSkip(action));
+            }
         }
     }
 }

@@ -26,6 +26,13 @@ settings). Tap **Show answer**, then grade yourself honestly with **Again** or
 clock runs out the card counts as Again. Grades and times are written back to
 AnkiDroid, so playing is reviewing. The game waits while a card is up.
 
+Buttons ignore taps for a moment after a card appears or flips, against
+accidental clicks. A grey row above the card has **Bury** and **Suspend**, which
+swap in another card with a fresh clock, and **Back**: on the answer side it
+returns to the question with the clock carrying on where it stopped, and on the
+question side it undoes the last bury/suspend. Buries and suspends are only sent
+to AnkiDroid once the card is graded, since AnkiDroid can't undo them.
+
 A correct answer scores 1.0 when instant and drops to 0.5 at the time limit.
 Hard counts a little lower and Easy a little higher. A miss scores 0.
 
