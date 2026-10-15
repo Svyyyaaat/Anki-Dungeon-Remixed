@@ -1,4 +1,4 @@
-package com.ankidungeon;
+package com.cramdungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;

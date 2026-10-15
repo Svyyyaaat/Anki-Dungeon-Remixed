@@ -21,10 +21,10 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 
-import com.ankidungeon.AnkiCheck;
-import com.ankidungeon.AnkiStealth;
-import com.ankidungeon.CheckKind;
-import com.ankidungeon.AnkiCombat;
+import com.cramdungeon.AnkiCheck;
+import com.cramdungeon.AnkiStealth;
+import com.cramdungeon.CheckKind;
+import com.cramdungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Challenges;

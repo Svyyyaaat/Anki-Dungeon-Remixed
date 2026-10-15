@@ -1,4 +1,4 @@
-package com.ankidungeon;
+package com.cramdungeon;
 
 public class AnkiDeck {
     public final long id;

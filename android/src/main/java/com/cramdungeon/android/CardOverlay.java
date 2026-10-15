@@ -1,4 +1,4 @@
-package com.ankidungeon.android;
+package com.cramdungeon.android;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;

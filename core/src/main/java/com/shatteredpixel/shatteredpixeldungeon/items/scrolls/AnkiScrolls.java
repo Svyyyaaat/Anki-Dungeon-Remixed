@@ -1,7 +1,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.items.scrolls;
 
-import com.ankidungeon.AnkiCheck;
-import com.ankidungeon.CheckKind;
+import com.cramdungeon.AnkiCheck;
+import com.cramdungeon.CheckKind;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ScrollOfChallenge;

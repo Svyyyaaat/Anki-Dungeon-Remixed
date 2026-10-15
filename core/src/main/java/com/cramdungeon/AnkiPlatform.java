@@ -1,4 +1,4 @@
-package com.ankidungeon;
+package com.cramdungeon;
 
 import java.util.List;
 import java.util.function.Consumer;

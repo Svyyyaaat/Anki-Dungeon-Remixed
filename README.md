@@ -1,4 +1,4 @@
-Anki Dungeon
+Cram Dungeon
 ============
 
 A roguelike that makes you study. Fights, unknown potions and scrolls, loot,
@@ -7,10 +7,10 @@ sneaking and searching all quiz you with cards from your own
 fast you answer decides how things turn out, and every answer is a real Anki
 review.
 
-Anki Dungeon is a fork of [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon)
+Cram Dungeon is a fork of [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon)
 by Evan Debenham (itself based on Pixel Dungeon by Watabou) and, like it, is
 licensed under the [GNU GPL v3](LICENSE.txt). It is not affiliated with
-Shattered Pixel or with AnkiDroid. The original Shattered Pixel Dungeon README
+Shattered Pixel, Anki (Ankitects) or AnkiDroid. The original Shattered Pixel Dungeon README
 is kept in [docs/SHATTERED_README.md](docs/SHATTERED_README.md). If you enjoy
 the game underneath, consider [supporting Shattered on Patreon](https://www.patreon.com/ShatteredPixel).
 
@@ -72,14 +72,14 @@ test key in `android/ci-debug.keystore`, which is not meant for Play Store relea
 `./gradlew :core:test`.
 
 Code map:
-- `core/src/main/java/com/ankidungeon/`: check queue, combat momentum, stealth,
+- `core/src/main/java/com/cramdungeon/`: check queue, combat momentum, stealth,
   pickup and search rules, settings tab and deck picker.
 - `core/src/main/java/.../items/potions/AnkiPotions.java`,
   `.../items/scrolls/AnkiScrolls.java`: the potion and scroll rules.
-- `android/src/main/java/com/ankidungeon/android/`: the AnkiDroid content
+- `android/src/main/java/com/cramdungeon/android/`: the AnkiDroid content
   provider bridge and the WebView card overlay.
 - `core/src/main/assets/anki/`: the card page and its chrome.
-- `tools/anki_art/`: scripts that generate the launcher icon and title logo.
+- `tools/art/`: scripts that generate the launcher icon and title logo.
 
 The upstream snapshot this fork started from is
 00-Evan/shattered-pixel-dungeon@57a4e06a4caf162446d1c28caa7983f0493fecf0.

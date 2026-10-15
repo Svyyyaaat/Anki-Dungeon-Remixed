@@ -1,4 +1,4 @@
-package com.ankidungeon;
+package com.cramdungeon;
 
 public class CardOutcome {
     public static final int AGAIN = 1;

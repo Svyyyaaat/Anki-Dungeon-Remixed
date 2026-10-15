@@ -21,11 +21,11 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.hero;
 
-import com.ankidungeon.AnkiCheck;
-import com.ankidungeon.AnkiSearch;
-import com.ankidungeon.CheckKind;
-import com.ankidungeon.AnkiPickup;
-import com.ankidungeon.AnkiCombat;
+import com.cramdungeon.AnkiCheck;
+import com.cramdungeon.AnkiSearch;
+import com.cramdungeon.CheckKind;
+import com.cramdungeon.AnkiPickup;
+import com.cramdungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Bones;

@@ -1,4 +1,4 @@
-package com.ankidungeon.android;
+package com.cramdungeon.android;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
@@ -13,10 +13,10 @@ import android.os.Build;
 import android.os.SystemClock;
 import android.util.Log;
 
-import com.ankidungeon.AnkiDeck;
-import com.ankidungeon.AnkiPlatform;
-import com.ankidungeon.CardOutcome;
-import com.ankidungeon.CardRequest;
+import com.cramdungeon.AnkiDeck;
+import com.cramdungeon.AnkiPlatform;
+import com.cramdungeon.CardOutcome;
+import com.cramdungeon.CardRequest;
 import com.watabou.noosa.Game;
 
 import org.json.JSONArray;
@@ -43,7 +43,7 @@ import java.util.regex.Pattern;
  */
 public class AnkiDroidBridge implements AnkiPlatform {
 
-    private static final String TAG = "AnkiDungeon";
+    private static final String TAG = "CramDungeon";
 
     static final String ANKIDROID_PACKAGE = "com.ichi2.anki";
     static final String AUTHORITY = "com.ichi2.anki.flashcards";

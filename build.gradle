@@ -11,8 +11,8 @@ buildscript {
 allprojects {
 
     ext {
-        appName = 'Anki Dungeon'
-        appPackageName = 'com.ankidungeon.game'
+        appName = 'Cram Dungeon'
+        appPackageName = 'com.cramdungeon.game'
 
         //Full releases gets +2 on version code, needed for an F-Droid quirk
         appVersionCode = 922

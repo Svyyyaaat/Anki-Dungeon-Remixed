@@ -21,8 +21,8 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.android;
 
-import com.ankidungeon.AnkiCheck;
-import com.ankidungeon.android.AnkiDroidBridge;
+import com.cramdungeon.AnkiCheck;
+import com.cramdungeon.android.AnkiDroidBridge;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;

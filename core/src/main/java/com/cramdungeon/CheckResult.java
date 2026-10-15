@@ -1,4 +1,4 @@
-package com.ankidungeon;
+package com.cramdungeon;
 
 /**
  * What a flashcard check means for the game.

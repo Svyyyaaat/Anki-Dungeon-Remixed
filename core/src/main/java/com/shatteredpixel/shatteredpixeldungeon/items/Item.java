@@ -21,7 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.items;
 
-import com.ankidungeon.AnkiThrow;
+import com.cramdungeon.AnkiThrow;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;

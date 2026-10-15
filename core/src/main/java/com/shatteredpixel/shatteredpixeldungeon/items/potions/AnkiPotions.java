@@ -1,8 +1,8 @@
 package com.shatteredpixel.shatteredpixeldungeon.items.potions;
 
-import com.ankidungeon.AnkiCheck;
-import com.ankidungeon.CheckKind;
-import com.ankidungeon.CheckResult;
+import com.cramdungeon.AnkiCheck;
+import com.cramdungeon.CheckKind;
+import com.cramdungeon.CheckResult;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;

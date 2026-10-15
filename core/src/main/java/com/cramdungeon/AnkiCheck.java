@@ -1,4 +1,4 @@
-package com.ankidungeon;
+package com.cramdungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
@@ -199,7 +199,7 @@ public final class AnkiCheck {
                 if (granted) {
                     chooseDeck();
                 } else {
-                    GLog.w("Anki Dungeon needs access to AnkiDroid to show your cards.");
+                    GLog.w("Cram Dungeon needs access to AnkiDroid to show your cards.");
                 }
             });
             return;
@@ -225,7 +225,7 @@ public final class AnkiCheck {
 
     private static void offerInstall() {
         show(() -> new WndOptions("AnkiDroid not found",
-                "Anki Dungeon quizzes you with cards from the AnkiDroid app, which isn't installed. "
+                "Cram Dungeon quizzes you with cards from the AnkiDroid app, which isn't installed. "
                         + "Install it, add a deck, then pick it in Settings > Flashcards.",
                 "Get AnkiDroid",
                 "Play without cards",

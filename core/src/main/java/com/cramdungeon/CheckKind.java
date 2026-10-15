@@ -1,4 +1,4 @@
-package com.ankidungeon;
+package com.cramdungeon;
 
 public enum CheckKind {
     ATTACK("Strike!", AnkiPrefs.TRIGGER_COMBAT),

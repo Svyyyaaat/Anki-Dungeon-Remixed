@@ -1,4 +1,4 @@
-package com.ankidungeon;
+package com.cramdungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.CheckBox;
@@ -26,12 +26,16 @@ public class FlashcardsTab extends Component {
     private OptionSlider optThink;
     private CheckBox chkSimple;
     private ColorBlock sep2;
-    private final ArrayList<CheckBox> triggers = new ArrayList<>();
+    // set up in createChildren(): Component's constructor calls it before field
+    // initializers run, so an initializer here would still be null at that point
+    private ArrayList<CheckBox> triggers;
 
     private String shownDeckLabel;
 
     @Override
     protected void createChildren() {
+        triggers = new ArrayList<>();
+
         title = PixelScene.renderTextBlock("Flashcards", 9);
         title.hardlight(Window.TITLE_COLOR);
         add(title);
