@@ -16,7 +16,9 @@ cracks are native:
 The glow layer pixels travel with their letters.  The soft drop shadow around
 the new letters is regenerated with a model fitted to the original halo
 (mask shifted 1px down, gaussian r=1.0, x1.5 -> mean error ~7/255).
-A small stone flashcard emblem with a glowing hand-pixelled あ sits on top.
+An Isaac-style flashcard (red frame, cream face, red hand-pixelled あ, in the
+letters' bevel treatment) sits on top (portrait) / to the left (landscape);
+its あ pulses red in the glow layer.
 
 Usage: python3 logo.py --src ORIGINAL_banners.png [--out banners.png] [--preview DIR]
 The original SPD banners.png is kept in tools/anki_art/spd_banners_orig.png so
@@ -98,7 +100,8 @@ def place(canvas, glow, letter, x0, y0):
 
 
 # ------------------------------------------------------------------ emblem
-# Hand-pixelled hiragana A with 2px strokes (18x18), not rasterised from a font.
+# Hand-pixelled hiragana A with 2px strokes (18x18 cell, 16 columns used),
+# not rasterised from a font.
 GLYPH18 = [
     ".......##.........",
     ".......##.........",
@@ -120,115 +123,111 @@ GLYPH18 = [
     "........#####.....",
 ]
 
-# colours taken from the original logo letters
+# letter treatment colours, taken from the original logo letters
 HILITE = (212, 219, 200)
-HILITE_END = (133, 144, 113)
-FILL_TOP, FILL_BOT = (132, 142, 111), (83, 91, 66)
-EDGE_TOP, EDGE_BOT = (58, 66, 48), (33, 38, 23)
-LAST_ROW = (88, 95, 70)
 BOTTOM = (15, 18, 8)
-GROOVE = (30, 33, 21)
-LIP = (106, 113, 91)
-MOSS = [(103, 151, 96), (95, 139, 88), (73, 119, 68), (69, 113, 63)]
-GLOW_CORE = (48, 147, 65, 255)
-GLOW_HALO = (48, 147, 65, 51)
-GLOW_HI = (105, 187, 119, 255)
+EDGE_DARK = (33, 38, 23)
+# Isaac-style card: red frame (items.png reds) + cream face (scroll parchment)
+FR_HI = (224, 73, 73)
+FR_TOP, FR_BOT = (179, 0, 30), (128, 30, 10)
+FR_EDGE = (80, 26, 26)
+FACE_TOP, FACE_BOT = (255, 244, 208), (217, 201, 161)
+FACE_RIM = (157, 136, 97)       # inner bevel: shadowed top/left of the recessed face
+FACE_LIP = (255, 248, 215)      # lit bottom edge of the recess
+INK = (179, 0, 30)
+INK_DK = (128, 30, 10)
+# glow layer: the あ pulses red-hot (the "signs" layer is an alpha-animated image)
+GLOW_CORE = (255, 84, 40, 255)
+GLOW_HALO = (236, 34, 8, 60)
 
-# 1px-stroke 13x12 version (same design as the launcher icon) for the
-# small landscape emblem
-GLYPH13 = [
-    ".....#.......",
-    ".#########...",
-    ".....#.......",
-    ".....#.......",
-    ".....#..#....",
-    "....######...",
-    "...#.##...#..",
-    "..#..#.....#.",
-    ".#..##.....#.",
-    ".#.#.#.....#.",
-    ".#.#......#..",
-    "..#.....##...",
+# bold 12x13 あ (same design as the launcher icon card), drawn at 2x for the
+# big landscape card so it reads like a card-suit symbol
+GLYPH12 = [
+    "....##......",
+    ".##########.",
+    ".##########.",
+    "....##......",
+    "....##.##...",
+    "...#######..",
+    "..##.##..##.",
+    ".##..##...##",
+    "##..###...##",
+    "##.###....##",
+    "####.....##.",
+    ".##.....##..",
+    ".....####...",
 ]
+GLYPH12_2X = [''.join(ch * 2 for ch in row) for row in GLYPH12 for _ in (0, 1)]
 
-BIG = dict(w=26, h=30, ear=5, glyph=GLYPH18, off=(4, 7),
-           crack=[(1, 4), (2, 4), (3, 5), (4, 5), (5, 6)])
-SMALL = dict(w=19, h=20, ear=4, glyph=GLYPH13, off=(3, 5), crack=[])
+CARD = dict(w=32, h=34, frame=3, glyph=GLYPH12_2X, off=(4, 4))
+CARD_L = dict(w=32, h=43, frame=3, glyph=GLYPH12_2X, off=(4, 8))
 
 
 def lerp(a, b, t):
     return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
 
 
-def emblem(spec):
-    """Stone flashcard (letter-style bevel) with an engraved, glowing あ.
+def card_emblem(spec=CARD):
+    """Isaac-style card in the logo's bevel treatment.
 
     Returns (pixels {(x,y): rgb}, glow {(x,y): rgba}) relative to the card's
-    top-left corner.
+    top-left corner.  The soft drop shadow is added later with the rest.
     """
-    w, h, f = spec['w'], spec['h'], spec['ear']
+    w, h, f = spec['w'], spec['h'], spec['frame']
     px = {}
+    corners = {(0, 0), (1, 0), (0, 1), (w - 1, 0), (w - 2, 0), (w - 1, 1),
+               (0, h - 1), (1, h - 1), (0, h - 2), (w - 1, h - 1), (w - 2, h - 1), (w - 1, h - 2)}
     for y in range(h):
-        t = max(0.0, min(1.0, (y - 1) / (h - 4)))
-        fill, edge = lerp(FILL_TOP, FILL_BOT, t), lerp(EDGE_TOP, EDGE_BOT, t)
+        t = y / (h - 1)
         for x in range(w):
-            r = w - 1 - x
-            if r + y < f:          # dog-ear cut
+            if (x, y) in corners:
                 continue
-            if (x, y) in [(0, h - 1), (w - 1, h - 1)]:
-                continue
-            if y == h - 1:
-                c = BOTTOM
-            elif y == 0 or r + y == f:
-                c = HILITE           # top edge and the fold line catch the light
-            elif y == h - 2:
-                c = LAST_ROW if 0 < x < w - 1 else edge
-            elif x == 0 or x == w - 1:
-                c = edge
+            inner = f <= x < w - f and f <= y < h - f
+            if inner:
+                fx, fy = x - f, y - f
+                iw, ih = w - 2 * f, h - 2 * f
+                if (fx, fy) in {(0, 0), (iw - 1, 0), (0, ih - 1), (iw - 1, ih - 1)}:
+                    c = lerp(FR_TOP, FR_BOT, t)       # rounded inner corners
+                elif fy == 0 or fx == 0:
+                    c = FACE_RIM                      # recess shadow (top/left)
+                elif fy == ih - 1:
+                    c = FACE_LIP                      # recess lit lip (bottom)
+                else:
+                    c = lerp(FACE_TOP, FACE_BOT, (fy - 1) / max(1, ih - 3))
             else:
-                c = fill
+                if y == h - 1:
+                    c = BOTTOM
+                elif y == 0 or (y == 1 and (x <= 1 or x >= w - 2)):
+                    c = HILITE if 1 < x < w - 2 or y == 1 else HILITE
+                elif x == 0 or x == w - 1:
+                    c = EDGE_DARK if x == w - 1 else FR_EDGE
+                elif y == 1:
+                    c = FR_HI
+                else:
+                    c = lerp(FR_TOP, FR_BOT, t)
             px[(x, y)] = c
-    # the folded flap: darker triangle with an edge-coloured border
-    for y in range(1, f + 1):
-        for r in range(0, f + 1):
-            if r + y <= f:
-                continue
-            x = w - 1 - r
-            t = (y - 1) / (h - 4)
-            px[(x, y)] = lerp(EDGE_TOP, EDGE_BOT, t) if (r == f or y == f) else lerp(FILL_TOP, FILL_BOT, 0.55)
-    px[(w - 1 - f, 0)] = HILITE_END
-    # engraved glyph: groove + lit lower lip (same treatment as the cracks)
     gx, gy = spec['off']
     glyph = {(gx + x, gy + y) for y, row in enumerate(spec['glyph']) for x, ch in enumerate(row) if ch == '#'}
-    # a hairline crack like the ones running through the letters
-    for (x, y) in spec['crack']:
-        px[(x, y)] = GROOVE
-        if (x, y + 1) not in spec['crack']:
-            px[(x, y + 1)] = LIP
     for (x, y) in glyph:
-        px[(x, y)] = GROOVE
-    for (x, y) in glyph:
-        if (x, y + 1) not in glyph and (x, y + 1) in px:
-            px[(x, y + 1)] = LIP
-    # a little moss creeping up the bottom-left corner
-    for (x, y), c in {(1, h - 3): 0, (2, h - 3): 2, (1, h - 4): 1, (1, h - 5): 3, (3, h - 2): 2,
-                      (2, h - 2): 0, (w - 3, h - 3): 3, (w - 2, h - 4): 2}.items():
-        px[(x, y)] = MOSS[c]
-    # glow: the glyph itself burns green, with the 1px soft halo the
-    # original runes use; a few brighter pixels on top-left stroke ends
+        px[(x, y)] = INK
     glow = {}
     for (x, y) in glyph:
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
                 p = (x + dx, y + dy)
-                if p not in glyph and p in px:
+                if p not in glyph:
                     glow[p] = GLOW_HALO
     for p in glyph:
         glow[p] = GLOW_CORE
-    for (x, y) in glyph:
-        if (x - 1, y) not in glyph and (x, y - 1) not in glyph:
-            glow[(x, y)] = GLOW_HI
     return px, glow
+
+
+def stamp(new, nglow, x0, y0, spec=CARD):
+    px, gl = card_emblem(spec)
+    for (x, y), c in px.items():
+        new.putpixel((x0 + x, y0 + y), c + (255,))
+    for (x, y), c in gl.items():
+        nglow.putpixel((x0 + x, y0 + y), c)
 
 
 # ------------------------------------------------------------------ build
@@ -252,13 +251,7 @@ def build_port(src):
         x += width(L[c]) + gap
 
     # emblem
-    ex = (W - BIG['w']) // 2
-    ey = LAYOUT['card_y']
-    epx, eglow = emblem(BIG)
-    for (x, y), c in epx.items():
-        new.putpixel((ex + x, ey + y), c + (255,))
-    for (x, y), c in eglow.items():
-        nglow.putpixel((ex + x, ey + y), c)
+    stamp(new, nglow, (W - CARD['w']) // 2, LAYOUT['card_y'])
     # keep the original floating rubble in the top corners
     for yy in range(0, 11):
         for xx in list(range(0, 22)) + list(range(112, W)):
@@ -287,7 +280,7 @@ def build_port(src):
     return out, glow
 
 
-LAYOUT = dict(anki_y=39, card_y=3)
+LAYOUT = dict(anki_y=39, card_y=1)
 
 
 def build_land(src):
@@ -301,8 +294,10 @@ def build_land(src):
     new = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     nglow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
 
-    # line 2: DUNGEON block from the portrait logo (opaque rows 61-86)
-    dx, dy = 50, 24 - 61
+    # line 2: DUNGEON block from the portrait logo (opaque rows 61-86);
+    # the whole [card | ANKI/DUNGEON] group is centred
+    group = CARD_L['w'] + LAYOUT_L['card_gap'] + 133
+    dx, dy = (W - group) // 2 + CARD_L['w'] + LAYOUT_L['card_gap'] - 3, 24 - 61
     for yy in range(61, 87):
         for xx in range(port.width):
             p = port.getpixel((xx, yy))
@@ -314,21 +309,17 @@ def build_land(src):
             if g[3] and 0 <= yy + dy < H:
                 nglow.putpixel((xx + dx, yy + dy), g)
 
-    # line 1: ANKI centred, small card emblem hanging to its left
+    # line 1: ANKI centred over DUNGEON
     gap = 1
     word = ['A', 'N', 'K', 'I']
     total = sum(width(L[c]) for c in word) + gap * (len(word) - 1)
-    x = (W - total) // 2
-    x_word = x
+    dun_x0, dun_x1 = 3 + dx, 135 + dx       # DUNGEON's opaque extent (portrait x 3..135)
+    x = (dun_x0 + dun_x1 + 1 - total) // 2
     for c in word:
         place(new, nglow, L[c], x, LAYOUT_L['anki_y'])
         x += width(L[c]) + gap
-    epx, eglow = emblem(SMALL)
-    ex, ey = x_word - LAYOUT_L['card_gap'] - SMALL['w'], LAYOUT_L['card_y']
-    for (x, y), c in epx.items():
-        new.putpixel((ex + x, ey + y), c + (255,))
-    for (x, y), c in eglow.items():
-        nglow.putpixel((ex + x, ey + y), c)
+    # the card stands to the left of both lines, vertically centred on them
+    stamp(new, nglow, dun_x0 - LAYOUT_L['card_gap'] - CARD_L['w'], LAYOUT_L['card_y'], CARD_L)
 
     # rubble: bring the portrait's bottom-corner pebbles along with DUNGEON
     for yy in range(87, port.height):
@@ -345,7 +336,7 @@ def build_land(src):
     return out, nglow
 
 
-LAYOUT_L = dict(anki_y=2, card_y=1, card_gap=5)
+LAYOUT_L = dict(anki_y=2, card_y=5, card_gap=6)
 
 
 def build(src):
@@ -360,9 +351,14 @@ def build(src):
 
 
 def preview(img, glow, path, k=8, bg=(128, 128, 128)):
+    """Glow is added the way TitleScene draws it: additive ("light") blending
+    at full strength, i.e. the peak of the pulse."""
     b = Image.new('RGBA', img.size, bg + (255,))
     b.alpha_composite(img)
-    b.alpha_composite(glow)
+    base = np.array(b).astype(int)
+    g = np.array(glow).astype(int)
+    base[:, :, :3] = np.minimum(255, base[:, :, :3] + g[:, :, :3] * g[:, :, 3:4] // 255)
+    b = Image.fromarray(base.astype(np.uint8))
     b.resize((img.width * k, img.height * k), Image.NEAREST).save(path)
 
 
