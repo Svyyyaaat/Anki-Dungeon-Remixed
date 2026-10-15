@@ -175,9 +175,13 @@ public class HeroSprite extends CharSprite {
 	@Override
 	public void draw() {
 		if (tails != null && ch instanceof Hero && ((Hero) ch).tails > 0) {
+			//her shadow, then the tails, then her: the shadow must not land on the tails
+			drawShadow();
 			drawTails( ((Hero) ch).tails );
+			drawWithoutShadow();
+		} else {
+			super.draw();
 		}
-		super.draw();
 	}
 
 	private void drawTails( int count ) {

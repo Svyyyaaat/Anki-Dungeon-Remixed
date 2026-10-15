@@ -780,6 +780,21 @@ public class CharSprite extends MovieClip implements Tweener.Listener, MovieClip
 		if (texture == null || (!dirty && buffer == null))
 			return;
 
+		drawShadow();
+		super.draw();
+	}
+
+	//Cram Dungeon: split so a sprite can draw something between its shadow and itself
+	protected void drawWithoutShadow() {
+		if (texture == null || (!dirty && buffer == null))
+			return;
+		super.draw();
+	}
+
+	protected void drawShadow() {
+		if (texture == null || (!dirty && buffer == null))
+			return;
+
 		if (renderShadow) {
 			if (dirty) {
 				((Buffer)verticesBuffer).position(0);
@@ -806,9 +821,6 @@ public class CharSprite extends MovieClip implements Tweener.Listener, MovieClip
 
 			script.drawQuad(buffer);
 		}
-
-		super.draw();
-
 	}
 
 	@Override
