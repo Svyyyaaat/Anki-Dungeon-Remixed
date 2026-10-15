@@ -25,13 +25,6 @@ jobs:
           java-version: "21"
           cache: gradle
 
-      # test builds share one committed debug key, so a new pre-release installs
-      # over the previous one; this key is not for Play Store releases
-      - name: Use the shared test signing key
-        run: |
-          mkdir -p ~/.android
-          cp android/ci-debug.keystore ~/.android/debug.keystore
-
       - name: Unit tests
         run: ./gradlew --no-daemon :core:test
 
