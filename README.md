@@ -70,6 +70,13 @@ Known potions and scrolls behave as usual. When the deck has nothing due, the
 game offers to switch decks, learn 10 new cards, or carry on without cards.
 Every trigger can be turned off on its own in settings.
 
+## Kitsune (work in progress)
+
+A new hero, picked as her own entry on the hero select screen. For now she
+plays exactly like the Mage (same staff, talents, subclasses and badges) and
+only her look is new: her own sprite and up to three fox tails. She starts with
+a _fox charm (test)_ that cycles her tails between 1 and 3.
+
 ## Limitations
 
 - AnkiDroid only. Anki desktop and AnkiMobile have no API for other apps.

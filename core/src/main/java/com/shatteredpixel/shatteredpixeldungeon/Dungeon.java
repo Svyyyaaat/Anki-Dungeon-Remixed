@@ -284,6 +284,7 @@ public class Dungeon {
 		Badges.reset();
 		
 		GamesInProgress.selectedClass.initHero( hero );
+		com.cramdungeon.Kitsune.startRun( hero, GamesInProgress.selectedClass );
 	}
 
 	public static boolean isChallenged( int mask ) {

@@ -1579,6 +1579,7 @@ public class GameScene extends PixelScene {
 			@Override
 			protected void onClick() {
 				GamesInProgress.selectedClass = Dungeon.hero.heroClass;
+				com.cramdungeon.Kitsune.selected = Dungeon.hero.kitsune;
 				GamesInProgress.curSlot = GamesInProgress.firstEmpty();
 				ShatteredPixelDungeon.switchScene(HeroSelectScene.class);
 			}

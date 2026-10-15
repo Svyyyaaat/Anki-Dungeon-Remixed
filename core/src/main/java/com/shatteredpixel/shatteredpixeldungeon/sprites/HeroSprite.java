@@ -29,6 +29,7 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.watabou.gltextures.SmartTexture;
 import com.watabou.gltextures.TextureCache;
+import com.cramdungeon.Kitsune;
 import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.Image;
@@ -49,10 +50,16 @@ public class HeroSprite extends CharSprite {
 	private Animation fly;
 	private Animation read;
 
+	//Cram Dungeon: the Kitsune's tails, drawn behind her
+	private Image tails;
+
 	public HeroSprite() {
 		super();
 		
-		texture( Dungeon.hero.heroClass.spritesheet() );
+		texture( spritesheet( Dungeon.hero ) );
+		if (Kitsune.is( Dungeon.hero )) {
+			tails = new Image( Kitsune.TAILS );
+		}
 		updateArmor();
 		
 		link( Dungeon.hero );
@@ -161,6 +168,40 @@ public class HeroSprite extends CharSprite {
 		super.update();
 	}
 	
+	private static Object spritesheet( Hero hero ) {
+		return Kitsune.is( hero ) ? Kitsune.SPRITES : hero.heroClass.spritesheet();
+	}
+
+	@Override
+	public void draw() {
+		if (tails != null && ch instanceof Hero && ((Hero) ch).tails > 0) {
+			drawTails( ((Hero) ch).tails );
+		}
+		super.draw();
+	}
+
+	private void drawTails( int count ) {
+		if (frame == null) return;
+		int index = Math.round( frame.left * texture.width / FRAME_WIDTH );
+		int[] off = Kitsune.frameOffset( index );
+		if (off == null) return;
+
+		int n = Math.min( count, Kitsune.MAX_TAILS );
+		tails.frame( tails.texture.uvRect( (n - 1) * Kitsune.TAIL_W, 0, n * Kitsune.TAIL_W, Kitsune.TAIL_H ) );
+		tails.scale.set( scale );
+		tails.flipHorizontal = flipHorizontal;
+		if (flipHorizontal) {
+			tails.x = x - (Kitsune.TAIL_W - Kitsune.HERO_X - FRAME_WIDTH + off[0]) * scale.x;
+		} else {
+			tails.x = x - (Kitsune.HERO_X - off[0]) * scale.x;
+		}
+		tails.y = y - (Kitsune.HERO_Y - off[1]) * scale.y;
+		tails.rm = rm; tails.gm = gm; tails.bm = bm; tails.am = am;
+		tails.ra = ra; tails.ga = ga; tails.ba = ba; tails.aa = aa;
+		tails.camera = camera();
+		tails.draw();
+	}
+
 	public void sprint( float speed ) {
 		run.delay = 1f / speed / RUN_FRAMERATE;
 	}
@@ -175,6 +216,14 @@ public class HeroSprite extends CharSprite {
 	}
 
 	public static Image avatar( Hero hero ){
+		if (Kitsune.is( hero ) && hero.buff(HeroDisguise.class) == null){
+			RectF patch = tiers().get( hero.tier() );
+			Image avatar = new Image( Kitsune.SPRITES );
+			RectF frame = avatar.texture.uvRect( 1, 0, FRAME_WIDTH, FRAME_HEIGHT );
+			frame.shift( patch.left, patch.top );
+			avatar.frame( frame );
+			return avatar;
+		}
 		if (hero.buff(HeroDisguise.class) != null){
 			return avatar(hero.buff(HeroDisguise.class).getDisguise(), hero.tier());
 		} else {

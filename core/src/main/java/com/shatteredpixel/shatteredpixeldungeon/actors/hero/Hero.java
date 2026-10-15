@@ -216,6 +216,9 @@ public class Hero extends Char {
 	private static final float HUNGER_FOR_SEARCH	= 6f;
 	
 	public HeroClass heroClass = HeroClass.ROGUE;
+	//Cram Dungeon: the Kitsune is a Mage run with her own look (com.cramdungeon.Kitsune)
+	public boolean kitsune;
+	public int tails = 1;
 	public HeroSubClass subClass = HeroSubClass.NONE;
 	public ArmorAbility armorAbility = null;
 	public ArrayList<LinkedHashMap<Talent, Integer>> talents = new ArrayList<>();
@@ -306,6 +309,8 @@ public class Hero extends Char {
 	private static final String LEVEL		= "lvl";
 	private static final String EXPERIENCE	= "exp";
 	private static final String HTBOOST     = "htboost";
+	private static final String KITSUNE     = "cram_kitsune";
+	private static final String TAILS       = "cram_tails";
 	
 	@Override
 	public void storeInBundle( Bundle bundle ) {
@@ -327,6 +332,9 @@ public class Hero extends Char {
 		
 		bundle.put( HTBOOST, HTBoost );
 
+		bundle.put( KITSUNE, kitsune );
+		bundle.put( TAILS, tails );
+
 		belongings.storeInBundle( bundle );
 	}
 	
@@ -341,6 +349,8 @@ public class Hero extends Char {
 		super.restoreFromBundle( bundle );
 
 		heroClass = bundle.getEnum( CLASS, HeroClass.class );
+		kitsune = bundle.getBoolean( KITSUNE );
+		tails = bundle.contains( TAILS ) ? bundle.getInt( TAILS ) : 1;
 		subClass = bundle.getEnum( SUBCLASS, HeroSubClass.class );
 		armorAbility = (ArmorAbility)bundle.get( ABILITY );
 		Talent.restoreTalentsFromBundle( bundle, this );
