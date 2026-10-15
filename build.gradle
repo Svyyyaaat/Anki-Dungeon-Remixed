@@ -1,51 +1,39 @@
-// Top-level build file where you can add configuration options common to all sub-projects/modules.
 buildscript {
-    ext {
-        agp_version = '8.9.2'
-    }
     repositories {
-        mavenLocal()
-        mavenCentral()
         google()
-
-        maven {
-            url "https://artifactory-external.vkpartner.ru/artifactory/maven"
-        }
-        
-        maven { url 'https://developer.huawei.com/repo/' }
-
-
-
+        mavenCentral()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:$agp_version"
-        classpath 'com.google.firebase:firebase-crashlytics-gradle:3.0.4'
-        classpath 'com.google.firebase:perf-plugin:1.4.2'
-        classpath 'com.google.gms:google-services:4.4.2' // google-services plugin
-        classpath 'com.getkeepsafe.dexcount:dexcount-gradle-plugin:1.0.0'
-        classpath 'com.huawei.agconnect:agcp:1.4.1.300'
+        classpath 'com.android.tools.build:gradle:9.2.0'
     }
 }
 
-plugins {
-    // root-level on purpose: the root project exists under every settings.*.gradle
-    // variant (desktop/android/html), so spotlessApply/spotlessCheck work with all of them.
-    id 'com.diffplug.spotless' version '6.25.0'
-}
+allprojects {
 
-spotless {
-    java {
-        // path-based targets: covers android/html sources even when their module
-        // is commented out of the active settings file. vendored trees excluded.
-        target 'RemixedDungeon/src/**/*.java',
-               'RemixedDungeonDesktop/src/**/*.java',
-               'RemixedDungeonHtml/src/**/*.java',
-               'RemixedDungeonHeadless/src/**/*.java',
-               'processor/src/**/*.java'
-        targetExclude '**/src/generated/**', '**/ml/BuildConfig.java'
-        encoding 'UTF-8'
-        removeUnusedImports() // google-java-format: drops unused and duplicate imports
-        importOrder()         // sorts alphabetically, merges duplicate import lines
+    ext {
+        appName = 'Shattered Pixel Dungeon'
+        appPackageName = 'com.shatteredpixel.shatteredpixeldungeon'
+
+        //Full releases gets +2 on version code, needed for an F-Droid quirk
+        appVersionCode = 922
+        appVersionName = '4.0.2'
+
+        appJavaCompatibility = JavaVersion.VERSION_11
+
+        appAndroidCompileSDK = 36   //Android 15
+        appAndroidMinSDK = 21       //Android 5.0
+        appAndroidTargetSDK = 36    //Android 15
+
+        gdxVersion = '1.14.0'
+        gdxControllersVersion = '2.2.4'
+        robovmVersion = '2.3.24'
     }
-}
+    version = appVersionName
 
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://central.sonatype.com/repository/maven-snapshots/' }
+    }
+
+}

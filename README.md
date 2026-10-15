@@ -1,78 +1,27 @@
-Anki Dungeon
-============
+# Shattered Pixel Dungeon
 
-A roguelike that makes you study. Fights, unknown potions and scrolls, loot,
-sneaking and searching all quiz you with cards from your own
-[AnkiDroid](https://github.com/ankidroid/Anki-Android) deck. How well and how
-fast you answer decides how things turn out, and every answer is a real Anki
-review.
+[Shattered Pixel Dungeon](https://shatteredpixel.com/shatteredpd/) is an open-source traditional roguelike dungeon crawler with randomized levels and enemies, and hundreds of items to collect and use. It's based on the [source code of Pixel Dungeon](https://github.com/00-Evan/pixel-dungeon-gradle), by [Watabou](https://watabou.itch.io/).
 
-Anki Dungeon is a fork of [Remixed Dungeon](https://github.com/NYRDS/remixed-dungeon)
-by NYRDS (itself a fork of Pixel Dungeon by Watabou) and, like it, is licensed
-under the [GNU GPL v3](LICENSE.txt). It is not affiliated with NYRDS or with
-AnkiDroid.
+Shattered Pixel Dungeon currently compiles for Android, iOS, and Desktop platforms. You can find official releases of the game on:
 
-## How it works
+[![Get it on Google Play](https://shatteredpixel.com/assets/images/badges/gplay.png)](https://play.google.com/store/apps/details?id=com.shatteredpixel.shatteredpixeldungeon)
+[![Download on the App Store](https://shatteredpixel.com/assets/images/badges/appstore.png)](https://apps.apple.com/app/shattered-pixel-dungeon/id1563121109)
+[![Steam](https://shatteredpixel.com/assets/images/badges/steam.png)](https://store.steampowered.com/app/1769170/Shattered_Pixel_Dungeon/)<br>
+[![GOG.com](https://shatteredpixel.com/assets/images/badges/gog.png)](https://www.gog.com/game/shattered_pixel_dungeon)
+[![Itch.io](https://shatteredpixel.com/assets/images/badges/itch.png)](https://shattered-pixel.itch.io/shattered-pixel-dungeon)
+[![Github Releases](https://shatteredpixel.com/assets/images/badges/github.png)](https://github.com/00-Evan/shattered-pixel-dungeon/releases)
 
-You need AnkiDroid installed with at least one deck. On the first check the game
-asks for permission to use AnkiDroid and lets you pick a deck. Change the deck
-any time, mid-run included, in **Settings > Flashcards**.
+If you like this game, please consider [supporting me on Patreon](https://www.patreon.com/ShatteredPixel)!
 
-A card shows the question and a clock (20 seconds by default, 5 to 60 in
-settings). Tap **Show answer**, then grade yourself honestly with **Again** or
-**Good** (turn off *Only Again / Good* to get all four Anki buttons). If the
-clock runs out the card counts as Again. Grades and times are written back to
-AnkiDroid, so playing is reviewing.
+There is an official blog for this project at [ShatteredPixel.com](https://www.shatteredpixel.com/blog/).
 
-A correct answer scores 1.0 when instant and drops to 0.5 at the time limit.
-Hard counts a little lower and Easy a little higher. A miss scores 0.
+The game also has a translation project hosted on [Transifex](https://explore.transifex.com/shattered-pixel/shattered-pixel-dungeon/).
 
-| Trigger | What the card does |
-|---|---|
-| Your attack (melee, thrown, arrows) | Accuracy x0.5-1.5, damage x0.75-1.25 |
-| An enemy's attack or zap on you | Evasion x0.5-1.5, damage taken x1.25-0.75 |
-| Momentum | Correct answers in a row (scoring 0.6+) bank up to 3 free exchanges played at that score. A miss, or 10 turns without a fight, resets it |
-| Drinking an unknown potion | Pass: it acts as a helpful potion. Miss: as a harmful one. If it already is that kind it works as itself; otherwise a random potion of that kind takes effect and the potion stays unidentified |
-| Throwing an unknown potion | The reverse: pass makes it harmful (for whoever it hits) |
-| Potion of Strength / Might | Never comes out of a stand-in. A miss identifies it and it slips from your hands, gone |
-| Reading an unknown scroll | Like potions: pass helpful, miss harmful |
-| Scroll of Upgrade / Weapon Upgrade | Never a stand-in. A miss identifies it and the draft carries it away |
-| Picking up unidentified gear | Pass reveals whether it is cursed. A fast pass identifies it fully |
-| Picking up gold | A pass adds up to +50% gold |
-| Near a sleeping monster | Each turn in its view fills a tension meter by the usual wake-up chance. When it fills you get a card: pass and it sleeps on, miss and it wakes |
-| Passive search | Hidden doors and traps the usual roll would find are only revealed after a passed card (at most one card per 15 turns) |
-| Active search | Pass widens the radius by 2 (3 when fast). Miss is a plain search |
+Note that **this repository does not accept pull requests!** The code here is provided in hopes that others may find it useful for their own projects, not to allow community contribution. Issue reports of all kinds (bug reports, feature requests, etc.) are welcome.
 
-Known potions and scrolls behave as usual. When the deck has nothing due, the
-game offers to switch decks, learn 10 new cards, or carry on without cards.
-Every trigger can be turned off on its own in settings. Realtime mode skips
-the cards.
-
-## Limitations
-
-- AnkiDroid only. Anki desktop and AnkiMobile have no API for other apps.
-- Card images and audio don't load: other apps can't read AnkiDroid's media
-  folder. Text, HTML, styling and furigana (`<ruby>`) work.
-
-## Building
-
-Android only for now (`settings.gradle` holds the Android module set). With the
-Android SDK installed (platform 36):
-
-```
-git submodule update --init luaj
-./gradlew :RemixedDungeon:assembleAndroidFdroidDebug
-```
-
-The APK lands in `RemixedDungeon/build/outputs/apk/androidFdroid/debug/`.
-
-Code map:
-- `RemixedDungeon/src/main/java/com/ankidungeon/`: check queue, combat momentum,
-  stealth, pickup and search rules, and the settings window.
-- `RemixedDungeon/src/android/java/com/ankidungeon/android/`: the AnkiDroid
-  content provider bridge and the WebView card overlay.
-- `RemixedDungeon/src/main/assets/anki/`: the card page and its chrome.
-- `tools/anki_logo/`: scripts that generate the title logo and launcher icon.
-
-The upstream snapshot this fork started from is
-NYRDS/remixed-dungeon@e926873e1f3e1b6062cdf8a22361e69eaeb3adee.
+If you'd like to work with the code, you can find the following guides in `/docs`:
+- [Compiling for Android.](docs/getting-started-android.md)
+    - **[If you plan to distribute on Google Play please read the end of this guide.](docs/getting-started-android.md#distributing-your-app)**
+- [Compiling for desktop platforms.](docs/getting-started-desktop.md)
+- [Compiling for iOS.](docs/getting-started-ios.md)
+- [Recommended changes for making your own version.](docs/recommended-changes.md)

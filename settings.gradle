@@ -1,16 +1,17 @@
-include ':processor', ':annotation', ':json_clone', ':luaj'
+//core game code modules
+include ':SPD-classes'
+include ':core'
 
-// Example project-level settings.gradle
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
-    repositories {
-        mavenCentral()
-        google()
-        maven {
-            url "https://artifactory-external.vkpartner.ru/artifactory/maven"
-        }
-        maven { url "https://artifactory.appodeal.com/appodeal/" }
-        maven { url 'https://developer.huawei.com/repo/' }
-    }
-}
-include ':RemixedDungeon'
+//platform modules
+include ':android'
+include ':ios'
+include ':desktop'
+
+//service modules
+include ':services'
+    //updates
+    include ':services:updates:debugUpdates'
+    include ':services:updates:githubUpdates'
+    //news
+    include ':services:news:debugNews'
+    include ':services:news:shatteredNews'
