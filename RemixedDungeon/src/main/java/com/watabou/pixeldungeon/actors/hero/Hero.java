@@ -1,6 +1,9 @@
 
 package com.watabou.pixeldungeon.actors.hero;
 
+import com.ankidungeon.AnkiCheck;
+import com.ankidungeon.AnkiSearch;
+import com.ankidungeon.CheckKind;
 import com.nyrds.LuaInterface;
 import com.nyrds.Packable;
 import com.nyrds.pixeldungeon.ai.MobAi;
@@ -67,6 +70,7 @@ import com.watabou.pixeldungeon.windows.WndSaveSlotSelect;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.Random;
 import com.watabou.utils.SystemTime;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -418,6 +422,10 @@ public class Hero extends Char {
     @Override
     public void handle(int cell) {
 
+        if (AnkiCheck.isBlocking()) {
+            return;
+        }
+
         if (doOnNextAction != null) {
             doOnNextAction.run();
             doOnNextAction = null;
@@ -671,6 +679,42 @@ public class Hero extends Char {
     }
 
     public boolean search(boolean intentional) {
+        if (this == Dungeon.hero && AnkiCheck.active(CheckKind.SEARCH)) {
+            if (intentional) {
+                // a passed card widens the search; a failed one is a plain search
+                AnkiCheck.request(CheckKind.SEARCH,
+                        result -> searchArea(true, AnkiSearch.bonusRadius(result), null));
+                return false;
+            }
+
+            // passive: what the vanilla roll would find is only revealed after a passed card
+            final ArrayList<Integer> candidates = new ArrayList<>();
+            searchArea(false, 0, candidates);
+            if (candidates.isEmpty() || !AnkiSearch.passiveReady()) {
+                return false;
+            }
+            AnkiSearch.passiveUsed();
+            AnkiCheck.request(CheckKind.SEARCH, result -> {
+                if (result.skipped || result.correct) {
+                    boolean found = false;
+                    for (int cell : candidates) {
+                        found |= revealSecret(Dungeon.level, cell);
+                    }
+                    if (found) {
+                        noticedSomething();
+                    }
+                }
+            });
+            return false;
+        }
+        return searchArea(intentional, 0, null);
+    }
+
+    /**
+     * Vanilla search. {@code extraDistance} widens the radius; with {@code collectOnly}
+     * the secrets that would be found are only collected, not revealed.
+     */
+    private boolean searchArea(boolean intentional, int extraDistance, ArrayList<Integer> collectOnly) {
 
         boolean smthFound = false;
 
@@ -681,6 +725,7 @@ public class Hero extends Char {
             searchLevel /= 2 - distance;
             distance = 1;
         }
+        distance += extraDistance;
 
         Level level = Dungeon.level;
 
@@ -713,25 +758,21 @@ public class Hero extends Char {
                     }
 
                     if (intentional || Random.Float() < searchLevel) {
-
-                        if (level.secret[p]) {
-                            int oldValue = level.map[p];
-                            GameScene.discoverTile(p);
-                            level.set(p, Terrain.discover(oldValue));
-                            GameScene.updateMapPair(p);
-                            ScrollOfMagicMapping.discover(p);
-                            smthFound = true;
-                        }
-
-                        LevelObject obj = level.getTopLevelObject(p);
-                        if (obj != null && obj.secret()) {
-                            obj.discover();
-                            ScrollOfMagicMapping.discover(p);
-                            smthFound = true;
+                        if (collectOnly != null) {
+                            LevelObject obj = level.getTopLevelObject(p);
+                            if (level.secret[p] || (obj != null && obj.secret())) {
+                                collectOnly.add(p);
+                            }
+                        } else {
+                            smthFound |= revealSecret(level, p);
                         }
                     }
                 }
             }
+        }
+
+        if (collectOnly != null) {
+            return !collectOnly.isEmpty();
         }
 
         if (intentional) {
@@ -746,12 +787,36 @@ public class Hero extends Char {
         }
 
         if (smthFound) {
-            GLog.w(StringsManager.getVar(R.string.Hero_NoticedSmth));
-            Sample.INSTANCE.play(Assets.SND_SECRET);
-            interrupt();
+            noticedSomething();
         }
 
         return smthFound;
+    }
+
+    private boolean revealSecret(Level level, int p) {
+        boolean found = false;
+        if (level.secret[p]) {
+            int oldValue = level.map[p];
+            GameScene.discoverTile(p);
+            level.set(p, Terrain.discover(oldValue));
+            GameScene.updateMapPair(p);
+            ScrollOfMagicMapping.discover(p);
+            found = true;
+        }
+
+        LevelObject obj = level.getTopLevelObject(p);
+        if (obj != null && obj.secret()) {
+            obj.discover();
+            ScrollOfMagicMapping.discover(p);
+            found = true;
+        }
+        return found;
+    }
+
+    private void noticedSomething() {
+        GLog.w(StringsManager.getVar(R.string.Hero_NoticedSmth));
+        Sample.INSTANCE.play(Assets.SND_SECRET);
+        interrupt();
     }
 
     public void resurrect() {

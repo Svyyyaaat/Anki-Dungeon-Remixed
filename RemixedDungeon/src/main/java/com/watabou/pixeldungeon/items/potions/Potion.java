@@ -65,7 +65,7 @@ public class Potion extends Item implements UnknownItem {
 
 	private static ItemStatusHandler<Potion> handler;
 	
-	private final String color;
+	private String color;
 
 	static {
 		images = new Integer[13];
@@ -149,6 +149,8 @@ public class Potion extends Item implements UnknownItem {
 							}
 					);
 
+				} else if (AnkiPotions.wantsDrinkCheck(this, chr)) {
+					AnkiPotions.drink(this, chr);
 				} else {
 					drink(chr);
 				}
@@ -224,6 +226,14 @@ public class Potion extends Item implements UnknownItem {
 	
 	@Override
 	protected void onThrow(int cell, @NotNull Char thrower, Char enemy) {
+		if (thrower.getPos() != cell && AnkiPotions.wantsThrowCheck(this, cell, thrower)) {
+			AnkiPotions.thrown(this, cell, thrower, enemy);
+			return;
+		}
+		onThrowVanilla(cell, thrower, enemy);
+	}
+
+	void onThrowVanilla(int cell, @NotNull Char thrower, Char enemy) {
 		if (thrower.getPos() == cell) {
 			apply( thrower );
 		} else {
@@ -246,7 +256,21 @@ public class Potion extends Item implements UnknownItem {
 		}
 	}
 
-	private boolean isMagicWell(Level level, int cell) {
+	/** Takes on another potion's looks, so a stand-in effect doesn't give away its colour. */
+	void disguiseAs(Potion other) {
+		color = other.color;
+		image = other.image;
+	}
+
+	static HashSet<Class<? extends Potion>> knownSnapshot() {
+		return new HashSet<>(handler.known());
+	}
+
+	static void restoreKnown(HashSet<Class<? extends Potion>> snapshot) {
+		handler.known().retainAll(snapshot);
+	}
+
+	boolean isMagicWell(Level level, int cell) {
 		return level.blobAmountAt(WaterOfAwareness.class, cell) > 0
 				|| level.blobAmountAt(WaterOfHealth.class, cell) > 0
 				|| level.blobAmountAt(WaterOfTransmutation.class, cell) > 0;

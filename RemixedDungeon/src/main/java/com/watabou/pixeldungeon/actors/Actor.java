@@ -1,6 +1,8 @@
 
 package com.watabou.pixeldungeon.actors;
 
+import com.ankidungeon.AnkiCheck;
+
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
 import com.nyrds.LuaInterface;
@@ -369,6 +371,9 @@ public abstract class Actor implements Bundlable, NamedEntityKind {
     }
 
     private static void processReaTime(float elapsed) {
+        if (AnkiCheck.isBlocking()) {
+            return;
+        }
 
         now += elapsed * realTimeMultiplier;
 
@@ -396,6 +401,11 @@ public abstract class Actor implements Bundlable, NamedEntityKind {
     }
 
     public static void processTurnBased(float elapsed) {
+        // a flashcard is on screen: the world waits for the answer
+        if (AnkiCheck.isBlocking()) {
+            return;
+        }
+
         Hero hero = Dungeon.hero;
         if(!hero.isAlive()) {
             if(Util.isDebug()) {

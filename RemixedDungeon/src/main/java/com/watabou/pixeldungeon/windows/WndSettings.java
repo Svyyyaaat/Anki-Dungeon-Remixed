@@ -1,6 +1,8 @@
 
 package com.watabou.pixeldungeon.windows;
 
+import com.ankidungeon.WndAnkiSettings;
+
 import com.nyrds.pixeldungeon.game.GameLoop;
 import com.nyrds.pixeldungeon.game.GamePreferences;
 import com.nyrds.pixeldungeon.ml.R;
@@ -23,6 +25,14 @@ public class WndSettings extends WndMenuCommon {
 			protected void onClick() {
 				super.onClick();
 				WndSettings.this.add(new WndUiSettings());
+			}
+		});
+
+        menuItems.add(new MenuButton("Flashcards"){
+			@Override
+			protected void onClick() {
+				super.onClick();
+				WndSettings.this.add(new WndAnkiSettings());
 			}
 		});
 

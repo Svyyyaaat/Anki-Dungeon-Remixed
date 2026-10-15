@@ -152,6 +152,11 @@ public abstract class MobAi implements AiState {
 
 
     protected Char chooseEnemy(@NotNull Char me, float attentionFactor) {
+        return chooseEnemy(me, attentionFactor, null);
+    }
+
+    /** {@code ignored} is left out of the notice roll (the hero while sneak checks are on). */
+    protected Char chooseEnemy(@NotNull Char me, float attentionFactor, Char ignored) {
 
         attentionFactor *= me.getAttentionFactor();
         attentionFactor *= GameLoop.getDifficultyFactor();
@@ -161,7 +166,7 @@ public abstract class MobAi implements AiState {
 
         for (Char chr : Actor.chars.values()) {
 
-            if(chr.invisible>0) {
+            if(chr.invisible>0 || chr == ignored) {
                 continue;
             }
 

@@ -1,6 +1,7 @@
 
 package com.watabou.pixeldungeon.items;
 
+import com.ankidungeon.AnkiCombat;
 import com.nyrds.LuaInterface;
 import com.nyrds.Packable;
 import com.nyrds.generated.BundleHelper;
@@ -661,7 +662,11 @@ public class Item extends Actor implements Bundlable, Presser, NamedEntityKindWi
         int finalCell = cell;
         sprite.reset(pos, cell, this, () -> {
             user.spend(finalDelay);
-            item.onThrow(finalCell, user, enemy);
+            if (enemy != null && item instanceof MissileWeapon && AnkiCombat.shouldCheck(user, enemy)) {
+                AnkiCombat.check(user, enemy, () -> item.onThrow(finalCell, user, enemy));
+            } else {
+                item.onThrow(finalCell, user, enemy);
+            }
         });
     }
 

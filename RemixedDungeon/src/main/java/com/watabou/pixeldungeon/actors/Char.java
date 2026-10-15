@@ -1,6 +1,7 @@
 
 package com.watabou.pixeldungeon.actors;
 
+import com.ankidungeon.AnkiCombat;
 import static com.watabou.pixeldungeon.Dungeon.level;
 
 import com.nyrds.LuaInterface;
@@ -523,7 +524,7 @@ public abstract class Char extends Actor implements HasPositionOnLevel, Presser,
                 GLog.i(StringsManager.getVars(R.array.Char_Hit)[getGender()], getName(), enemy.getName_objective());
             }
 
-            int dmg = damageRoll();
+            int dmg = AnkiCombat.damage(this, enemy, damageRoll());
 
 
             boolean isCriticalHit = checkCriticalHit(enemy);
@@ -1244,9 +1245,18 @@ public abstract class Char extends Actor implements HasPositionOnLevel, Presser,
     @LuaInterface
     public void onAttackComplete() {
         if (isAlive()) {
-            Char enemy = getEnemy();
+            final Char enemy = getEnemy();
+            if (enemy.valid() && AnkiCombat.shouldCheck(this, enemy)) {
+                AnkiCombat.check(this, enemy, () -> completeAttack(enemy));
+                return;
+            }
+        }
+        completeAttack(getEnemy());
+    }
 
-            if (enemy.valid()) {
+    private void completeAttack(Char enemy) {
+        if (isAlive()) {
+            if (enemy.valid() && enemy.isAlive()) {
                 belongings.forEachEquipped(item -> item.preAttack(enemy));
 
                 if (attack(enemy)) {
@@ -2603,8 +2613,8 @@ public abstract class Char extends Actor implements HasPositionOnLevel, Presser,
     }
 
     private boolean checkCriticalHit(Char enemy) {
-        int attackSkill = attackSkill(enemy);
-        int defenseSkill = enemy.defenseSkill(this);
+        float attackSkill = attackSkill(enemy) * AnkiCombat.accuracy(this, enemy);
+        float defenseSkill = enemy.defenseSkill(this) * AnkiCombat.evasion(enemy, this);
 
         float acuRoll = Random.Float(attackSkill);
         float defRoll = Random.Float(defenseSkill);

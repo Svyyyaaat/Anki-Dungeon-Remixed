@@ -2,6 +2,8 @@ package com.watabou.pixeldungeon.actors;
 
 
 
+import com.ankidungeon.AnkiCombat;
+import com.ankidungeon.AnkiPickup;
 import com.nyrds.LuaInterface;
 import com.nyrds.pixeldungeon.ai.Hunting;
 import com.nyrds.pixeldungeon.ai.MobAi;
@@ -466,8 +468,8 @@ public class CharUtils {
             return true;
         }
 
-        float acuRoll = Random.Float(attacker.attackSkill(defender));
-        float defRoll = Random.Float(defender.defenseSkill(attacker));
+        float acuRoll = Random.Float(attacker.attackSkill(defender) * AnkiCombat.accuracy(attacker, defender));
+        float defRoll = Random.Float(defender.defenseSkill(attacker) * AnkiCombat.evasion(defender, attacker));
         boolean hit = (magic ? acuRoll * 2 : acuRoll) >= defRoll;
 
         if (ModQuirks.mobLeveling) {
@@ -828,6 +830,8 @@ public class CharUtils {
 
                 removeFromHeap(oldHeap);
                 item.pickedUp(hero);
+
+                AnkiPickup.afterPickUp(hero, item);
 
             } else {
                 Heap newHeap = hero.level().drop(item, heapPos);

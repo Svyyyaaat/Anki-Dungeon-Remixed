@@ -1,6 +1,7 @@
 
 package com.watabou.pixeldungeon.actors.mobs;
 
+import com.ankidungeon.AnkiCombat;
 import com.nyrds.LuaInterface;
 import com.nyrds.Packable;
 import com.nyrds.generated.BundleHelper;
@@ -715,7 +716,16 @@ public class Mob extends Char implements IZapper {
 
     @Override
     public final void onZapComplete() {
-        Char enemy = getEnemy();
+        final Char enemy = getEnemy();
+        if (enemy.valid() && AnkiCombat.shouldCheck(this, enemy)) {
+            AnkiCombat.check(this, enemy, () -> {
+                if (isAlive() && enemy.isAlive()) {
+                    zap(enemy);
+                }
+                super.onZapComplete();
+            });
+            return;
+        }
         if(enemy.valid()) {
             zap(enemy);
         }
@@ -1093,7 +1103,7 @@ public class Mob extends Char implements IZapper {
 
         if (enemy.valid()) {
             if (zapHit(enemy)) {
-                int damage = zapProc(enemy, damageRoll());
+                int damage = zapProc(enemy, AnkiCombat.damage(this, enemy, damageRoll()));
                 int effectiveDamage = enemy.defenseProc(this, damage);
 
                 enemy.damage(effectiveDamage, this);

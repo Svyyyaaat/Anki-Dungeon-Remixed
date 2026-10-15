@@ -1,5 +1,8 @@
 package com.nyrds.platform.game;
 
+import com.ankidungeon.AnkiCheck;
+import com.ankidungeon.android.AnkiDroidBridge;
+
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -176,6 +179,10 @@ public class Game extends Activity implements GLSurfaceView.Renderer, View.OnTou
         // view.setEGLConfigChooser( false );
         view.setRenderer(this);
         view.setOnTouchListener(this);
+
+        if (AnkiCheck.platform() == null) {
+            AnkiCheck.setPlatform(new AnkiDroidBridge());
+        }
     }
 
     public static void syncAdsState() {
@@ -208,6 +215,7 @@ public class Game extends Activity implements GLSurfaceView.Renderer, View.OnTou
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.addView(view);
         setContentView(layout);
+        AnkiDroidBridge.onActivityResumed(this);
 
         instance = this;
 

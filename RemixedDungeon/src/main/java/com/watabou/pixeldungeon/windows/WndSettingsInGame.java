@@ -1,6 +1,8 @@
 
 package com.watabou.pixeldungeon.windows;
 
+import com.ankidungeon.WndAnkiSettings;
+
 import com.nyrds.pixeldungeon.game.GameLoop;
 import com.nyrds.pixeldungeon.game.GamePreferences;
 import com.nyrds.pixeldungeon.ml.R;
@@ -19,6 +21,14 @@ public class WndSettingsInGame extends WndMenuCommon {
     @Override
     protected void createItems() {
         addSoundControls(menuItems);
+
+        menuItems.add(new MenuButton("Flashcards") {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                WndSettingsInGame.this.add(new WndAnkiSettings());
+            }
+        });
 
         menuItems.add(new MenuCheckBox(StringsManager.getVar(R.string.WndSettings_Brightness), GamePreferences.brightness()) {
             @Override

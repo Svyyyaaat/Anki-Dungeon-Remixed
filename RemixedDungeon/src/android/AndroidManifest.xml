@@ -6,6 +6,13 @@
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- read decks and write reviews through AnkiDroid's content provider -->
+    <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE"/>
+
+    <queries>
+        <package android:name="com.ichi2.anki"/>
+        <provider android:authorities="com.ichi2.anki.flashcards"/>
+    </queries>
     <uses-permission android:name="android.permission.INTERNET"/>
 
 

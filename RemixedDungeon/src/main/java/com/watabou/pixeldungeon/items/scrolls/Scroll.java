@@ -127,6 +127,9 @@ public abstract class Scroll extends Item implements UnknownItem {
 		if (action.equals( CommonActions.AC_READ )) {
 			if (chr.hasBuff( BuffFactory.BLINDNESS )) {
                 GLog.w(StringsManager.getVar(R.string.Scroll_Blinded));
+			} else if (AnkiScrolls.wantsCheck(this, chr)) {
+				AnkiScrolls.read(this, chr);
+				return;
 			} else {
 				detach( chr.getBelongings().backpack );
 				doRead(chr);
@@ -138,6 +141,21 @@ public abstract class Scroll extends Item implements UnknownItem {
 	}
 	
 	abstract protected void doRead(@NotNull Char reader);
+
+	/** Vanilla read: what happens right after the AC_READ action. */
+	void readVanilla(@NotNull Char chr) {
+		detach( chr.getBelongings().backpack );
+		doRead(chr);
+		chr.readyAndIdle();
+	}
+
+	static HashSet<Class<? extends Scroll>> knownSnapshot() {
+		return new HashSet<>(handler.known());
+	}
+
+	static void restoreKnown(HashSet<Class<? extends Scroll>> snapshot) {
+		handler.known().retainAll(snapshot);
+	}
 	
 	public boolean isKnown() {
 		return handler.isKnown( this );
