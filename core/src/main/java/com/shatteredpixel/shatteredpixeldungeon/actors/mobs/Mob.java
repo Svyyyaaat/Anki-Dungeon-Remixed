@@ -21,6 +21,10 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 
+import com.ankidungeon.AnkiCheck;
+import com.ankidungeon.AnkiStealth;
+import com.ankidungeon.CheckKind;
+import com.ankidungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Challenges;
@@ -809,7 +813,17 @@ public abstract class Mob extends Char {
 	
 	@Override
 	public void onAttackComplete() {
-		attack( enemy );
+		// with flashcards on, a hit on the hero lands after the card is answered
+		final Char target = enemy;
+		if (target != null && AnkiCombat.shouldCheck(this, target)) {
+			AnkiCombat.check(this, target, () -> completeAttack(target));
+			return;
+		}
+		completeAttack(target);
+	}
+
+	private void completeAttack(Char target) {
+		attack( target );
 		Invisibility.dispel(this);
 		spend( attackDelay() );
 		super.onAttackComplete();
@@ -1261,7 +1275,20 @@ public abstract class Mob extends Char {
 					}
 				}
 
-				if (closestHostile != null && Random.Float() < detectionChance(closestHostile)) {
+				if (closestHostile != null && AnkiStealth.active(Mob.this, closestHostile)) {
+					// flashcards: the wake-up chance fills a tension meter, a full one asks a card
+					if (AnkiStealth.addTension(Mob.this, detectionChance(closestHostile))) {
+						final boolean inFOV = enemyInFOV;
+						spend(TICK);
+						AnkiCheck.request(CheckKind.SNEAK, result -> {
+							if (AnkiStealth.resolve(Mob.this, result) && state == SLEEPING) {
+								awaken(inFOV);
+							}
+							next();
+						});
+						return false;
+					}
+				} else if (closestHostile != null && Random.Float() < detectionChance(closestHostile)) {
 					awaken(enemyInFOV);
 					if (state == SLEEPING){
 						spend(TICK); //wait if we can't wake up for some reason

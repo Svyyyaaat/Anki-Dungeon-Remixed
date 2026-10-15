@@ -184,6 +184,8 @@ public abstract class Scroll extends Item {
 					&& hero.buff(UnstableSpellbook.bookRecharge.class).isCursed()
 					&& !(this instanceof ScrollOfRemoveCurse || this instanceof ScrollOfAntiMagic)){
 				GLog.n( Messages.get(this, "cursed") );
+			} else if (AnkiScrolls.wantsCheck(this, hero)) {
+				AnkiScrolls.read(this, hero);
 			} else {
 				doRead();
 			}

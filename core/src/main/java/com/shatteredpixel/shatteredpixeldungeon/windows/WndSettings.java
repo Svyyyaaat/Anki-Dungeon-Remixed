@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.windows;
 
+import com.ankidungeon.FlashcardsTab;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.SPDSettings;
@@ -68,6 +69,7 @@ public class WndSettings extends WndTabbed {
 	private DataTab     data;
 	private AudioTab    audio;
 	private LangsTab    langs;
+	private FlashcardsTab flashcards;
 
 	public static int last_index = 0;
 
@@ -186,11 +188,25 @@ public class WndSettings extends WndTabbed {
 		};
 		add( langsTab );
 
+		flashcards = new FlashcardsTab();
+		flashcards.setSize(width, 0);
+		height = Math.max(height, flashcards.height());
+		add( flashcards );
+
+		add( new IconTab(Icons.get(Icons.SCROLL_GREY)){
+			@Override
+			protected void select(boolean value) {
+				super.select(value);
+				flashcards.visible = flashcards.active = value;
+				if (value) last_index = 6;
+			}
+		});
+
 		resize(width, (int)Math.ceil(height));
 
 		layoutTabs();
 
-		if (tabs.size() == 5 && last_index >= 3){
+		if (tabs.size() == 6 && last_index >= 3){
 			//input tab isn't visible
 			select(last_index-1);
 		} else {

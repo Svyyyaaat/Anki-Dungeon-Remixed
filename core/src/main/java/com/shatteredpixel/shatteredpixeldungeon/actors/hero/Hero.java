@@ -21,6 +21,11 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.hero;
 
+import com.ankidungeon.AnkiCheck;
+import com.ankidungeon.AnkiSearch;
+import com.ankidungeon.CheckKind;
+import com.ankidungeon.AnkiPickup;
+import com.ankidungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Bones;
@@ -1120,6 +1125,7 @@ public class Hero extends Char {
 				Item item = heap.peek();
 				if (item.doPickUp( this )) {
 					heap.pickUp();
+					AnkiPickup.afterPickUp(this, item);
 
 					//TODO this statement is getting silly, might be better to handle this as a propery of items
 					if (item instanceof Dewdrop
@@ -1905,9 +1911,8 @@ public class Hero extends Char {
 
 			spend( delay / speed() );
 			
-			search(false);
-
-			return true;
+			// a pending passive-search card ends the turn and calls next() itself
+			return !searchWhileWalking();
 
 		} else {
 
@@ -2352,6 +2357,15 @@ public class Hero extends Char {
 	
 	@Override
 	public void onAttackComplete() {
+		// with flashcards on, the swing lands after the card is answered
+		if (attackTarget != null && AnkiCombat.shouldCheck(this, attackTarget)) {
+			AnkiCombat.check(this, attackTarget, this::completeAttack);
+			return;
+		}
+		completeAttack();
+	}
+
+	private void completeAttack() {
 
 		if (attackTarget == null){
 			curAction = null;
@@ -2488,6 +2502,55 @@ public class Hero extends Char {
 	}
 
 	public boolean search( boolean intentional ) {
+		if (intentional && isAlive() && AnkiCheck.active(CheckKind.SEARCH)) {
+			// flashcards: a passed card widens the search, a failed one is a plain search
+			AnkiCheck.request(CheckKind.SEARCH,
+					result -> searchArea(true, AnkiSearch.bonusRadius(result), null));
+			return false;
+		}
+		return searchArea(intentional, 0, null);
+	}
+
+	/**
+	 * Passive search after a step. With flashcards on, what the roll finds is only
+	 * revealed after a passed card. Returns true while that card is pending: the
+	 * hero's turn then ends with the card, which calls next().
+	 */
+	private boolean searchWhileWalking() {
+		if (!AnkiCheck.active(CheckKind.SEARCH) || buff(Foresight.class) != null) {
+			search(false);
+			return false;
+		}
+
+		final ArrayList<Integer> candidates = new ArrayList<>();
+		searchArea(false, 0, candidates);
+		if (candidates.isEmpty() || !AnkiSearch.passiveReady()) {
+			return false;
+		}
+		AnkiSearch.passiveUsed();
+		AnkiCheck.request(CheckKind.SEARCH, result -> {
+			if (result.skipped || result.correct) {
+				TalismanOfForesight.Foresight talisman = buff( TalismanOfForesight.Foresight.class );
+				boolean seen = false;
+				for (int cell : candidates) {
+					seen |= revealSecret(cell, talisman);
+				}
+				if (seen) {
+					GLog.w( Messages.get(this, "noticed_smth") );
+					Sample.INSTANCE.play( Assets.Sounds.SECRET );
+					interrupt();
+				}
+			}
+			next();
+		});
+		return true;
+	}
+
+	/**
+	 * Vanilla search. {@code extraDistance} widens the radius; with {@code collectOnly}
+	 * the secrets the roll finds are only collected, not revealed.
+	 */
+	private boolean searchArea( boolean intentional, int extraDistance, ArrayList<Integer> collectOnly ) {
 		
 		if (!isAlive()) return false;
 		
@@ -2496,6 +2559,7 @@ public class Hero extends Char {
 		boolean circular = pointsInTalent(Talent.WIDE_SEARCH) == 1;
 		int distance = heroClass == HeroClass.ROGUE ? 2 : 1;
 		if (hasTalent(Talent.WIDE_SEARCH)) distance++;
+		distance = Math.min(distance + extraDistance, ShadowCaster.MAX_DISTANCE);
 		
 		boolean foresight = buff(Foresight.class) != null;
 		boolean foresightScan = foresight && !Dungeon.level.mapped[pos];
@@ -2582,28 +2646,19 @@ public class Hero extends Char {
 						}
 						
 						if (Random.Float() < chance) {
-						
-							int oldValue = Dungeon.level.map[curr];
-							
-							GameScene.discoverTile( curr, oldValue );
-							
-							Dungeon.level.discover( curr );
-							
-							ScrollOfMagicMapping.discover( curr );
-							
-							if (fieldOfView[curr]) smthFound = true;
-	
-							if (talisman != null){
-								if (oldValue == Terrain.SECRET_TRAP){
-									talisman.charge(2);
-								} else if (oldValue == Terrain.SECRET_DOOR){
-									talisman.charge(10);
-								}
+							if (collectOnly != null) {
+								collectOnly.add(curr);
+							} else if (revealSecret(curr, talisman)) {
+								smthFound = true;
 							}
 						}
 					}
 				}
 			}
+		}
+
+		if (collectOnly != null) {
+			return !collectOnly.isEmpty();
 		}
 		
 		if (intentional) {
@@ -2638,6 +2693,26 @@ public class Hero extends Char {
 		return smthFound;
 	}
 	
+	/** Reveals a found secret; true if it was in view. */
+	private boolean revealSecret( int curr, TalismanOfForesight.Foresight talisman ) {
+		int oldValue = Dungeon.level.map[curr];
+
+		GameScene.discoverTile( curr, oldValue );
+
+		Dungeon.level.discover( curr );
+
+		ScrollOfMagicMapping.discover( curr );
+
+		if (talisman != null){
+			if (oldValue == Terrain.SECRET_TRAP){
+				talisman.charge(2);
+			} else if (oldValue == Terrain.SECRET_DOOR){
+				talisman.charge(10);
+			}
+		}
+		return fieldOfView[curr];
+	}
+
 	public void resurrect() {
 		HP = HT;
 		live();

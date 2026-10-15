@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.items;
 
+import com.ankidungeon.AnkiThrow;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
@@ -659,6 +660,11 @@ public class Item implements Bundlable {
 							new Callback() {
 						@Override
 						public void call() {
+							// flashcards: a card may decide how it lands before the vanilla landing runs
+							AnkiThrow.impact(user, Item.this, enemy, this::land);
+						}
+
+						private void land() {
 							curUser = user;
 							Item i = Item.this.detach(user.belongings.backpack);
 							if (i != null) i.onThrow(cell);
@@ -687,11 +693,13 @@ public class Item implements Bundlable {
 							new Callback() {
 						@Override
 						public void call() {
-							curUser = user;
-							Item i = Item.this.detach(user.belongings.backpack);
-							user.spend(delay);
-							if (i != null) i.onThrow(cell);
-							user.next();
+							AnkiThrow.impact(user, Item.this, null, () -> {
+								curUser = user;
+								Item i = Item.this.detach(user.belongings.backpack);
+								user.spend(delay);
+								if (i != null) i.onThrow(cell);
+								user.next();
+							});
 						}
 					});
 		}

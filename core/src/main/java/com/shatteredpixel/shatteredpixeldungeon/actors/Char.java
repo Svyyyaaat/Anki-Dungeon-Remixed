@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors;
 
+import com.ankidungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
@@ -416,6 +417,7 @@ public abstract class Char extends Actor {
 			}
 
 			dmg = dmg*dmgMulti;
+			dmg = AnkiCombat.damage(this, enemy, dmg);
 
 			//flat damage bonus is affected by multipliers
 			dmg += dmgBonus;
@@ -658,6 +660,7 @@ public abstract class Char extends Actor {
 			acuRoll *= 1.01f + 0.02f*Dungeon.hero.pointsInTalent(Talent.BLESS);
 		}
 		acuRoll *= accMulti;
+		acuRoll *= AnkiCombat.accuracy(attacker, defender);
 
 		float defRoll = Random.Float( defStat );
 		if (defender.buff(Bless.class) != null) defRoll *= 1.25f;
@@ -674,6 +677,7 @@ public abstract class Char extends Actor {
 			defRoll *= 1.01f + 0.02f*Dungeon.hero.pointsInTalent(Talent.BLESS);
 		}
 		defRoll *= FerretTuft.evasionMultiplier();
+		defRoll *= AnkiCombat.evasion(defender, attacker);
 
 		if (acuRoll >= defRoll){
 			hitMissIcon = FloatingText.getHitReasonIcon(attacker, acuRoll, defender, defRoll);

@@ -1,27 +1,82 @@
-# Shattered Pixel Dungeon
+Anki Dungeon
+============
 
-[Shattered Pixel Dungeon](https://shatteredpixel.com/shatteredpd/) is an open-source traditional roguelike dungeon crawler with randomized levels and enemies, and hundreds of items to collect and use. It's based on the [source code of Pixel Dungeon](https://github.com/00-Evan/pixel-dungeon-gradle), by [Watabou](https://watabou.itch.io/).
+A roguelike that makes you study. Fights, unknown potions and scrolls, loot,
+sneaking and searching all quiz you with cards from your own
+[AnkiDroid](https://github.com/ankidroid/Anki-Android) deck. How well and how
+fast you answer decides how things turn out, and every answer is a real Anki
+review.
 
-Shattered Pixel Dungeon currently compiles for Android, iOS, and Desktop platforms. You can find official releases of the game on:
+Anki Dungeon is a fork of [Shattered Pixel Dungeon](https://github.com/00-Evan/shattered-pixel-dungeon)
+by Evan Debenham (itself based on Pixel Dungeon by Watabou) and, like it, is
+licensed under the [GNU GPL v3](LICENSE.txt). It is not affiliated with
+Shattered Pixel or with AnkiDroid. The original Shattered Pixel Dungeon README
+is kept in [docs/SHATTERED_README.md](docs/SHATTERED_README.md). If you enjoy
+the game underneath, consider [supporting Shattered on Patreon](https://www.patreon.com/ShatteredPixel).
 
-[![Get it on Google Play](https://shatteredpixel.com/assets/images/badges/gplay.png)](https://play.google.com/store/apps/details?id=com.shatteredpixel.shatteredpixeldungeon)
-[![Download on the App Store](https://shatteredpixel.com/assets/images/badges/appstore.png)](https://apps.apple.com/app/shattered-pixel-dungeon/id1563121109)
-[![Steam](https://shatteredpixel.com/assets/images/badges/steam.png)](https://store.steampowered.com/app/1769170/Shattered_Pixel_Dungeon/)<br>
-[![GOG.com](https://shatteredpixel.com/assets/images/badges/gog.png)](https://www.gog.com/game/shattered_pixel_dungeon)
-[![Itch.io](https://shatteredpixel.com/assets/images/badges/itch.png)](https://shattered-pixel.itch.io/shattered-pixel-dungeon)
-[![Github Releases](https://shatteredpixel.com/assets/images/badges/github.png)](https://github.com/00-Evan/shattered-pixel-dungeon/releases)
+## How it works
 
-If you like this game, please consider [supporting me on Patreon](https://www.patreon.com/ShatteredPixel)!
+You need AnkiDroid installed with at least one deck. On the first check the game
+asks for permission to use AnkiDroid and lets you pick a deck. Change the deck
+any time, mid-run included, in **Settings > Flashcards** (the scroll tab).
 
-There is an official blog for this project at [ShatteredPixel.com](https://www.shatteredpixel.com/blog/).
+A card shows the question and a clock (20 seconds by default, 5 to 60 in
+settings). Tap **Show answer**, then grade yourself honestly with **Again** or
+**Good** (turn off *Only Again / Good* to get all four Anki buttons). If the
+clock runs out the card counts as Again. Grades and times are written back to
+AnkiDroid, so playing is reviewing. The game waits while a card is up.
 
-The game also has a translation project hosted on [Transifex](https://explore.transifex.com/shattered-pixel/shattered-pixel-dungeon/).
+A correct answer scores 1.0 when instant and drops to 0.5 at the time limit.
+Hard counts a little lower and Easy a little higher. A miss scores 0.
 
-Note that **this repository does not accept pull requests!** The code here is provided in hopes that others may find it useful for their own projects, not to allow community contribution. Issue reports of all kinds (bug reports, feature requests, etc.) are welcome.
+| Trigger | What the card does |
+|---|---|
+| Your attack (melee, thrown weapons, spirit bow) | Accuracy x0.5-1.5, damage x0.75-1.25 |
+| An enemy's melee attack on you | Evasion x0.5-1.5, damage taken x1.25-0.75 |
+| Momentum | Correct answers in a row (scoring 0.6+) bank up to 3 free exchanges played at that score. A miss, or 10 turns without a fight, resets it |
+| Drinking an unknown potion | Pass: it acts as a helpful potion. Miss: as a harmful one. If it already is that kind it works as itself; otherwise a random potion of that kind takes effect and yours stays unidentified |
+| Throwing an unknown potion | The reverse: pass makes it harmful (for whatever it hits) |
+| Potion of Strength (or Mastery) | Never comes out of a stand-in. A miss identifies it and it slips from your hands, gone |
+| Reading an unknown scroll | Like potions: pass helpful, miss harmful (Rage, Challenge or Psionic Blast) |
+| Scroll of Upgrade (or Enchantment) | Never a stand-in. A miss identifies it and the draft carries it away |
+| Picking up unidentified gear | Pass reveals whether it is cursed. A fast pass identifies it fully |
+| Picking up gold | A pass adds up to +50% gold |
+| Near a sleeping monster | Each turn it could notice you fills a tension meter by the usual wake-up chance. When it fills you get a card: pass and it sleeps on, miss and it wakes |
+| Passive search while walking | Hidden doors and traps the usual roll would find are only revealed after a passed card (at most one card per 15 turns) |
+| Active search | Pass widens the radius by 2 (3 when fast). Miss is a plain search |
 
-If you'd like to work with the code, you can find the following guides in `/docs`:
-- [Compiling for Android.](docs/getting-started-android.md)
-    - **[If you plan to distribute on Google Play please read the end of this guide.](docs/getting-started-android.md#distributing-your-app)**
-- [Compiling for desktop platforms.](docs/getting-started-desktop.md)
-- [Compiling for iOS.](docs/getting-started-ios.md)
-- [Recommended changes for making your own version.](docs/recommended-changes.md)
+Known potions and scrolls behave as usual. When the deck has nothing due, the
+game offers to switch decks, learn 10 new cards, or carry on without cards.
+Every trigger can be turned off on its own in settings.
+
+## Limitations
+
+- AnkiDroid only. Anki desktop and AnkiMobile have no API for other apps.
+- Card images and audio don't load: other apps can't read AnkiDroid's media
+  folder. Text, HTML, styling and furigana (`<ruby>`) work.
+- Enemy spells and ranged zaps don't ask cards yet, only melee hits on you.
+- New text is English only.
+
+## Building
+
+Android only for now. With the Android SDK installed:
+
+```
+./gradlew :android:assembleDebug
+```
+
+The APK lands in `android/build/outputs/apk/debug/`. Run the rule tests with
+`./gradlew :core:test`.
+
+Code map:
+- `core/src/main/java/com/ankidungeon/`: check queue, combat momentum, stealth,
+  pickup and search rules, settings tab and deck picker.
+- `core/src/main/java/.../items/potions/AnkiPotions.java`,
+  `.../items/scrolls/AnkiScrolls.java`: the potion and scroll rules.
+- `android/src/main/java/com/ankidungeon/android/`: the AnkiDroid content
+  provider bridge and the WebView card overlay.
+- `core/src/main/assets/anki/`: the card page and its chrome.
+- `tools/anki_art/`: scripts that generate the launcher icon and title logo.
+
+The upstream snapshot this fork started from is
+00-Evan/shattered-pixel-dungeon@57a4e06a4caf162446d1c28caa7983f0493fecf0.

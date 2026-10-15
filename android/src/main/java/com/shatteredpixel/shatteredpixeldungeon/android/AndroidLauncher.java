@@ -21,6 +21,8 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.android;
 
+import com.ankidungeon.AnkiCheck;
+import com.ankidungeon.android.AnkiDroidBridge;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
@@ -54,6 +56,7 @@ import com.watabou.utils.FileUtils;
 public class AndroidLauncher extends AndroidApplication {
 	
 	public static AndroidApplication instance;
+	private static AnkiDroidBridge anki;
 	
 	private static AndroidPlatformSupport support;
 	
@@ -143,6 +146,8 @@ public class AndroidLauncher extends AndroidApplication {
 					getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, new OnBackInvokedCallback() {
 						@Override
 						public void onBackInvoked() {
+							// a flashcard is up: it has to be answered
+							if (AnkiDroidBridge.cardShowing()) return;
 							KeyEvent.addKeyEvent(new KeyEvent(Input.Keys.BACK, true));
 							KeyEvent.addKeyEvent(new KeyEvent(Input.Keys.BACK, false));
 						}
@@ -150,6 +155,10 @@ public class AndroidLauncher extends AndroidApplication {
 				}
 			});
 		}
+
+		// flashcards come from AnkiDroid; the bridge needs the live activity
+		anki = new AnkiDroidBridge(this);
+		AnkiCheck.setPlatform(anki);
 
 		AndroidApplicationConfiguration config = new AndroidApplicationConfiguration();
 		config.depth = 0;
@@ -183,6 +192,12 @@ public class AndroidLauncher extends AndroidApplication {
 			finishAndRemoveTask();
 		}
 		super.onResume();
+	}
+
+	@Override
+	public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+		super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+		anki.onRequestPermissionsResult(requestCode, grantResults);
 	}
 
 	@SuppressLint("GestureBackNavigation")
