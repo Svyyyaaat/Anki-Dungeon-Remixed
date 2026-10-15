@@ -390,45 +390,6 @@ def adaptive_bg():
     return stone(ADAPT).convert('RGBA')
 
 
-def monochrome(st=None):
-    """Themed (Material You) icon layer: line art in the style of Shattered's own,
-    thick even strokes and no fine detail, so it stays clean when tinted.
-    Lid sides behind a rounded card with the あ, chest rim and box, keyhole lock."""
-    g = [[0] * ADAPT for _ in range(ADAPT)]
-
-    def rect(x0, y0, x1, y1, v=1):
-        for y in range(y0, y1 + 1):
-            for x in range(x0, x1 + 1):
-                g[y][x] = v
-
-    # lid sides, rounded on top
-    rect(13, 15, 15, 29); g[15][13] = g[15][15] = 0
-    rect(38, 15, 40, 29); g[15][38] = g[15][40] = 0
-    # card rising out of the chest: 2px rounded outline
-    rect(18, 11, 35, 12); rect(18, 11, 19, 29); rect(34, 11, 35, 29)
-    g[11][18] = g[11][35] = 0
-    gx, gy = 21, 15
-    for j, row in enumerate(GLYPH):
-        for i, ch in enumerate(row):
-            if ch == '#':
-                g[gy + j][gx + i] = 1
-    # chest: 3px front rim, 2px box, rounded corners
-    rect(13, 30, 40, 32); rect(13, 30, 14, 41); rect(39, 30, 40, 41); rect(13, 40, 40, 41)
-    g[30][13] = g[30][40] = g[41][13] = g[41][40] = 0
-    # lock plate cut free of the rim, keyhole wide on top with a narrow stem
-    rect(23, 29, 31, 37, 0)
-    rect(24, 30, 30, 36)
-    g[30][24] = g[30][30] = g[36][24] = g[36][30] = 0
-    rect(26, 31, 28, 32, 0)
-    rect(27, 33, 27, 34, 0)
-    mono = Image.new('RGBA', (ADAPT, ADAPT), (0, 0, 0, 0))
-    for y in range(ADAPT):
-        for x in range(ADAPT):
-            if g[y][x]:
-                mono.putpixel((x, y), (0, 0, 0, 255))
-    return mono
-
-
 def legacy(grid, st=None):
     """Square legacy icon: stone tile with 2-grid-px rounded corners + art."""
     bg = stone(grid, seed=3).convert('RGBA')
@@ -465,16 +426,16 @@ def write_repo(root):
     # release (main) and debug builds ship their own copies of the icon set
     for flavour in ('main', 'debug'):
         write_res(os.path.join(root, 'android', 'src', flavour, 'res'))
+    # the themed (monochrome) icon is a vector drawable: tools/art/mono_vector.py
     write_about(root)
 
 
 def write_res(res):
-    fg, bg, mono = adaptive_fg(), adaptive_bg(), monochrome()
+    fg, bg = adaptive_fg(), adaptive_bg()
     for d, k in DENS.items():
         p = os.path.join(res, 'mipmap-' + d)
         up(fg, k).save(os.path.join(p, 'ic_launcher_foreground.png'))
         up(bg, k).save(os.path.join(p, 'ic_launcher_background.png'))
-        up(mono, k).save(os.path.join(p, 'ic_launcher_monochrome.png'))
     for d, (g, k) in LEGACY.items():
         up(legacy(g), k).save(os.path.join(res, 'mipmap-' + d, 'ic_launcher.png'))
     legacy_mdpi().save(os.path.join(res, 'mipmap-mdpi', 'ic_launcher.png'))
@@ -516,7 +477,6 @@ def previews(d, tag, st=None):
     up(comp, 8).save(os.path.join(d, f'{tag}_adaptive8x.png'))
     circle_crop(up(comp, 8), guides=True).save(os.path.join(d, f'{tag}_adaptive8x_safezone.png'))
     up(on(legacy(36, st), (128, 128, 128)), 8).save(os.path.join(d, f'{tag}_legacy8x.png'))
-    up(on(monochrome(st), (200, 200, 200)), 8).save(os.path.join(d, f'{tag}_mono8x.png'))
     actual_sheet(st).save(os.path.join(d, f'{tag}_actual.png'))
 
 
