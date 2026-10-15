@@ -164,11 +164,13 @@ GLYPH18 = [
 HILITE = (212, 219, 200)
 BOTTOM = (15, 18, 8)
 EDGE_DARK = (33, 38, 23)
-# Isaac-style card: red frame (items.png reds, same as the launcher icon's
-# card) + cream face (scroll parchment)
-FR_HI = (224, 73, 73)
-FR_TOP, FR_BOT = (179, 0, 30), (128, 30, 10)
-FR_EDGE = (80, 26, 26)
+# Card frame in the letters' own stone (sampled row by row from SHATTERED's R:
+# bright top highlight, darker band under it, lighter body further down),
+# so the card reads as part of the carved title rather than a sticker.
+FR_HI = (101, 110, 83)
+FR_TOP, FR_BOT = (108, 118, 90), (132, 142, 111)
+FR_EDGE = (70, 78, 53)
+MOSS = (111, 162, 104)
 FACE_TOP, FACE_BOT = (255, 244, 208), (217, 201, 161)
 FACE_RIM = (157, 136, 97)       # inner bevel: shadowed top/left of the recessed face
 FACE_LIP = (255, 248, 215)      # lit bottom edge of the recess
@@ -256,6 +258,9 @@ def card_emblem(spec=CARD):
                     c = FR_HI
                 else:
                     c = lerp(FR_TOP, FR_BOT, t)
+                    # a few moss pixels along the bottom of the frame, like the letters
+                    if y >= h - f - 1 and (x * 7 + y * 3) % 5 == 0:
+                        c = MOSS
             px[(x, y)] = c
     gx, gy = spec['off']
     glyph = {(gx + x, gy + y) for y, row in enumerate(spec['glyph']) for x, ch in enumerate(row) if ch == '#'}
@@ -292,12 +297,12 @@ def build_port(src):
     new = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     nglow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
 
+    # emblem first, so CRAM overlaps its lower edge and the card sits behind the title
+    stamp(new, nglow, (W - CARD['w']) // 2, LAYOUT['card_y'])
+
     # CRAM centred over DUNGEON (opaque extent x 3..135)
     for c, x in word_layout(L, 3, 135):
         place(new, nglow, L[c], x, LAYOUT['word_y'])
-
-    # emblem
-    stamp(new, nglow, (W - CARD['w']) // 2, LAYOUT['card_y'])
     # keep the original floating rubble in the top corners
     for yy in range(0, 11):
         for xx in list(range(0, 22)) + list(range(112, W)):
@@ -357,10 +362,10 @@ def build_land(src):
 
     # line 1: CRAM centred over DUNGEON
     dun_x0, dun_x1 = 3 + dx, 135 + dx       # DUNGEON's opaque extent (portrait x 3..135)
+    # the card stands to the left of both lines; drawn first so the words overlap it
+    stamp(new, nglow, dun_x0 - LAYOUT_L['card_gap'] - CARD_L['w'], LAYOUT_L['card_y'], CARD_L)
     for c, x in word_layout(L, dun_x0, dun_x1):
         place(new, nglow, L[c], x, LAYOUT_L['word_y'])
-    # the card stands to the left of both lines, vertically centred on them
-    stamp(new, nglow, dun_x0 - LAYOUT_L['card_gap'] - CARD_L['w'], LAYOUT_L['card_y'], CARD_L)
 
     # rubble: bring the portrait's bottom-corner pebbles along with DUNGEON
     for yy in range(87, port.height):
