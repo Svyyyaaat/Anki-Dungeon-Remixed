@@ -50,7 +50,11 @@ FRAME = {
 }
 # rune card (title logo): dark carved face, stone あ burning rune green
 DARK_FACE_HI, DARK_FACE, DARK_FACE_LO = (18, 20, 12), (36, 40, 27), (28, 31, 20)
-RUNE, RUNE_HI, RUNE_DIM = (48, 147, 65), (105, 187, 119), (26, 70, 32)
+# neon greens sampled from the title logo's あ at the peak of its glow
+NEON_BODY, NEON_CORE, NEON_HOT = (180, 255, 176), (206, 255, 207), (237, 255, 230)
+NEON_HALO = (52, 91, 49)
+# a more saturated take for small sizes, where the pale mint reads as white
+VIVID_BODY, VIVID_CORE, VIVID_HOT = (64, 230, 92), (120, 255, 128), (190, 255, 180)
 FACE_HI, FACE, FACE_LO = (255, 248, 215), (255, 244, 208), (217, 201, 161)
 INK = {'red': (179, 0, 30), 'black': (41, 30, 0)}
 # background stone (original SPD ic_launcher_background colours)
@@ -158,11 +162,18 @@ def card_layer(st):
                     q = (i + di, j + dj)
                     if q in face and q not in glyph and not any(
                             (q[0] + a, q[1] + b) in glyph for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1))):
-                        lay[q] = RUNE_DIM
+                        lay[q] = NEON_HALO
         for (i, j) in glyph:
-            # bright burning strokes, darker green on their lower/right edges
-            shaded = (i, j + 1) not in glyph and (i - 1, j + 1) not in glyph
-            lay[(i, j)] = RUNE if shaded else RUNE_HI
+            # neon strokes like the title's at full glow: hottest on the lit
+            # top/left edge, core-bright inside, body on the lower/right edge
+            body, core, hot = ((VIVID_BODY, VIVID_CORE, VIVID_HOT) if st.get('neon') == 'vivid'
+                               else (NEON_BODY, NEON_CORE, NEON_HOT))
+            if (i, j - 1) not in glyph or (i - 1, j) not in glyph:
+                lay[(i, j)] = hot
+            elif (i, j + 1) not in glyph or (i + 1, j) not in glyph:
+                lay[(i, j)] = body
+            else:
+                lay[(i, j)] = core
     else:
         for p in glyph:
             lay[p] = INK[st['ink']]
