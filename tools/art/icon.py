@@ -312,6 +312,22 @@ def art(st=None):
     return img
 
 
+def about_icon(st=None):
+    """Just the card (with its outline), for the Cram Dungeon block on the About screen."""
+    st = st or STYLE
+    card = card_layer(st)
+    edge = dilate8(set(card)) - set(card)
+    xs = [x for x, _ in edge]
+    ys = [y for _, y in edge]
+    x0, y0 = min(xs), min(ys)
+    img = Image.new('RGBA', (max(xs) - x0 + 1, max(ys) - y0 + 1), (0, 0, 0, 0))
+    for (x, y) in edge:
+        img.putpixel((x - x0, y - y0), OUT + (255,))
+    for (x, y), c in card.items():
+        img.putpixel((x - x0, y - y0), c + (255,))
+    return img
+
+
 # ---------------------------------------------------------------- background
 def stone(size, seed=7, vignette=True, dark=1):
     """Dungeon brick wall on a `size` grid using only SPD's six stone colours.
@@ -418,10 +434,15 @@ def up(img, k):
     return img.resize((img.width * k, img.height * k), Image.NEAREST)
 
 
+def write_about(root):
+    about_icon().save(os.path.join(root, 'core', 'src', 'main', 'assets', 'anki', 'about_icon.png'))
+
+
 def write_repo(root):
     # release (main) and debug builds ship their own copies of the icon set
     for flavour in ('main', 'debug'):
         write_res(os.path.join(root, 'android', 'src', flavour, 'res'))
+    write_about(root)
 
 
 def write_res(res):

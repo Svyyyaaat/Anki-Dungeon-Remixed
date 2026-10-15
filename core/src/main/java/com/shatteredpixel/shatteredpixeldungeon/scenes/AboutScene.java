@@ -64,6 +64,22 @@ public class AboutScene extends PixelScene {
 		Component content = list.content();
 		content.clear();
 
+		//*** Cram Dungeon Credits ***
+
+		CreditsBlock cram = new CreditsBlock(true, CRAM_COLOR,
+				"Cram Dungeon",
+				new Image("anki/about_icon.png"),
+				"Developed by: _Svyyyaaat_\nShattered Pixel Dungeon, with flashcards from your AnkiDroid decks",
+				"github.com/Svyyyaaat",
+				"https://github.com/Svyyyaaat/Anki-Dungeon-Remixed");
+		cram.setRect((w - colWidth)/2f, insets.top + 6, colWidth, 0);
+		content.add(cram);
+
+		addLine(cram.bottom() + 4, content);
+
+		//everything below keeps its original layout, moved down under the block above
+		float shpxTop = cram.bottom() + 10;
+
 		//*** Shattered Pixel Dungeon Credits ***
 
 		CreditsBlock shpx = new CreditsBlock(true, Window.SHPX_COLOR,
@@ -73,9 +89,9 @@ public class AboutScene extends PixelScene {
 				"ShatteredPixel.com",
 				"https://ShatteredPixel.com");
 		if (landscape()){
-			shpx.setRect((w - fullWidth)/2f - 6, insets.top + 26, 120, 0);
+			shpx.setRect((w - fullWidth)/2f - 6, shpxTop + 20, 120, 0);
 		} else {
-			shpx.setRect((w - fullWidth)/2f, insets.top + 6, 120, 0);
+			shpx.setRect((w - fullWidth)/2f, shpxTop, 120, 0);
 		}
 		content.add(shpx);
 
@@ -87,7 +103,7 @@ public class AboutScene extends PixelScene {
 				"https://www.alekskomitov.com/");
 		aleks.setSize(colWidth/2f, 0);
 		if (landscape()){
-			aleks.setPos(shpx.right(), insets.top+6);
+			aleks.setPos(shpx.right(), shpxTop);
 		} else {
 			aleks.setPos(w/2f - colWidth/2f, shpx.bottom()+6);
 		}
@@ -271,6 +287,9 @@ public class AboutScene extends PixelScene {
 	protected void onBackPressed() {
 		ShatteredPixelDungeon.switchScene(TitleScene.class);
 	}
+
+	//green of the title logo's runes
+	private static final int CRAM_COLOR = 0x69BB77;
 
 	private void addLine( float y, Group content ){
 		ColorBlock line = new ColorBlock(Camera.main.width, 1, 0xFF333333);
