@@ -31,8 +31,8 @@ Hard counts a little lower and Easy a little higher. A miss scores 0.
 
 | Trigger | What the card does |
 |---|---|
-| Your attack (melee, thrown weapons, spirit bow) | Accuracy x0.5-1.5, damage x0.75-1.25 |
-| An enemy's melee attack on you | Evasion x0.5-1.5, damage taken x1.25-0.75 |
+| Your attack (melee, thrown weapons, spirit bow, wand bolts) | Accuracy x0.5-1.5, damage x0.75-1.25 |
+| An enemy's attack on you (melee, spells such as warlock and shaman bolts, the evil eye's beam) | Evasion x0.5-1.5, damage taken x1.25-0.75 |
 | Momentum | Correct answers in a row (scoring 0.6+) bank up to 3 free exchanges played at that score. A miss, or 10 turns without a fight, resets it |
 | Drinking an unknown potion | Pass: it acts as a helpful potion. Miss: as a harmful one. If it already is that kind it works as itself; otherwise a random potion of that kind takes effect and yours stays unidentified |
 | Throwing an unknown potion | The reverse: pass makes it harmful (for whatever it hits) |
@@ -54,7 +54,7 @@ Every trigger can be turned off on its own in settings.
 - AnkiDroid only. Anki desktop and AnkiMobile have no API for other apps.
 - Card images and audio don't load: other apps can't read AnkiDroid's media
   folder. Text, HTML, styling and furigana (`<ruby>`) work.
-- Enemy spells and ranged zaps don't ask cards yet, only melee hits on you.
+- Enemy abilities that don't roll to hit (gas vents, summons, debuff fists) don't ask cards.
 - New text is English only.
 
 ## Building
@@ -65,7 +65,10 @@ Android only for now. With the Android SDK installed:
 ./gradlew :android:assembleDebug
 ```
 
-The APK lands in `android/build/outputs/apk/debug/`. Run the rule tests with
+The APK lands in `android/build/outputs/apk/debug/`. Test builds are also on the
+[releases page](../../releases): the *Android build* workflow builds every push, and
+running it by hand publishes a pre-release. Those APKs are signed with the shared
+test key in `android/ci-debug.keystore`, which is not meant for Play Store releases. Run the rule tests with
 `./gradlew :core:test`.
 
 Code map:

@@ -417,7 +417,6 @@ public abstract class Char extends Actor {
 			}
 
 			dmg = dmg*dmgMulti;
-			dmg = AnkiCombat.damage(this, enemy, dmg);
 
 			//flat damage bonus is affected by multipliers
 			dmg += dmgBonus;
@@ -836,6 +835,9 @@ public abstract class Char extends Actor {
 		if (!isAlive() || dmg < 0) {
 			return;
 		}
+
+		// flashcards: the answer for the exchange being resolved scales damage either way
+		dmg = AnkiCombat.damageTaken(this, dmg);
 
 		if(isInvulnerable(src.getClass())){
 			sprite.showStatus(CharSprite.POSITIVE, Messages.get(this, "invulnerable"));

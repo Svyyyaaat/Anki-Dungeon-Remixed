@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 
+import com.ankidungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
@@ -163,6 +164,20 @@ public class Eye extends Mob {
 	
 	//used so resistances can differentiate between melee and magical attacks
 	public static class DeathGaze{}
+
+	/** Beam animation finished: a hero in the beam answers a defence card first. */
+	public void onBeamComplete(){
+		Char hero = Dungeon.hero;
+		if (beam != null && hero != null && beam.subPath(1, beam.dist).contains(hero.pos)) {
+			AnkiCombat.ranged(this, hero, () -> {
+				deathGaze();
+				next();
+			});
+		} else {
+			deathGaze();
+			next();
+		}
+	}
 
 	public void deathGaze(){
 		if (!beamCharged || beamCooldown > 0 || beam == null)

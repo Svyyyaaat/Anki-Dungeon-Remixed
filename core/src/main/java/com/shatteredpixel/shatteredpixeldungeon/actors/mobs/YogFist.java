@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 
+import com.ankidungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Challenges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
@@ -171,6 +172,14 @@ public abstract class YogFist extends Mob {
 	protected abstract void zap();
 
 	public void onZapComplete(){
+		// flashcards: only the fists whose zap rolls to hit ask a defence card
+		if (this instanceof SoiledFist || this instanceof BrightFist) {
+			AnkiCombat.ranged(this, enemy, () -> {
+				zap();
+				next();
+			});
+			return;
+		}
 		zap();
 		next();
 	}

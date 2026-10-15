@@ -128,16 +128,30 @@ public final class AnkiCombat {
         return 1f;
     }
 
-    public static float damage(Char attacker, Char defender, float dmg) {
-        if (!modsApply(attacker, defender)) {
+    /**
+     * Damage taken by {@code victim} while an exchange is being resolved. Spells hit
+     * with a bolt object as the damage source, so this keys off the exchange's
+     * defender rather than the source.
+     */
+    public static int damageTaken(Char victim, int dmg) {
+        if (modAttacker == null || victim != modDefender) {
             return dmg;
         }
-        if (attacker == Dungeon.hero) {
-            return dmg * (0.75f + 0.5f * modPerformance);
+        if (victim == Dungeon.hero) {
+            return Math.round(dmg * (1.25f - 0.5f * modPerformance));
         }
-        if (defender == Dungeon.hero) {
-            return dmg * (1.25f - 0.5f * modPerformance);
+        if (modAttacker == Dungeon.hero) {
+            return Math.round(dmg * (0.75f + 0.5f * modPerformance));
         }
         return dmg;
+    }
+
+    /** Ranged attacks (spells, beams, wand bolts): {@code land} resolves the shot. */
+    public static void ranged(Char attacker, Char target, Runnable land) {
+        if (target != null && shouldCheck(attacker, target)) {
+            check(attacker, target, land);
+        } else {
+            land.run();
+        }
     }
 }

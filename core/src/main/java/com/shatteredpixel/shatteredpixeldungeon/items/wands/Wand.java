@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.items.wands;
 
+import com.ankidungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
@@ -764,8 +765,18 @@ public abstract class Wand extends Item {
 									}
 								});
 					} else {
+						final Hero user = curUser;
 						curWand.fx(shot, new Callback() {
 							public void call() {
+								// flashcards: a wand bolt at an enemy lands after the attack card
+								Char victim = Actor.findChar(shot.collisionPos);
+								AnkiCombat.ranged(user, victim, () -> {
+									curUser = user;
+									land();
+								});
+							}
+
+							private void land() {
 								curWand.onZap(shot);
 								if (Random.Float() < WondrousResin.extraCurseEffectChance()){
 									WondrousResin.forcePositive = true;

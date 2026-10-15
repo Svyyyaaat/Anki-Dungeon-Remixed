@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 
+import com.ankidungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
@@ -143,8 +144,11 @@ public class CrystalWisp extends Mob{
 	}
 
 	public void onZapComplete() {
-		zap();
-		next();
+		// flashcards: the bolt lands after the defence card
+		AnkiCombat.ranged(this, enemy, () -> {
+			zap();
+			next();
+		});
 	}
 
 	public static final String SPRITE = "sprite";

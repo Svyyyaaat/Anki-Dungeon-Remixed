@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 
+import com.ankidungeon.AnkiCombat;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
@@ -130,8 +131,11 @@ public class Warlock extends Mob {
 	}
 	
 	public void onZapComplete() {
-		zap();
-		next();
+		// flashcards: the bolt lands after the defence card
+		AnkiCombat.ranged(this, enemy, () -> {
+			zap();
+			next();
+		});
 	}
 
 	@Override
