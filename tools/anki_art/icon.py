@@ -15,7 +15,7 @@ Grids
   * legacy:    ic_launcher.png
                36-grid (art + 2px stone border): ldpi 36 (x1), hdpi 72 (x2), xxhdpi 144 (x4)
                32-grid (art on stone, no border): xhdpi 96 (x3), xxxhdpi 192 (x6)
-               48-grid (art + 8px stone border): mdpi 48 (x1)
+               mdpi 48: the 32-grid tile at 1.5x nearest neighbour (see legacy_mdpi)
 
 Usage: python3 icon.py [--out REPO_ROOT] [--preview DIR] [--tag NAME]
 """
@@ -69,14 +69,24 @@ GLYPH = [
 ]
 
 # ---------------------------------------------------------------- layout
+# 32x32 art grid (outline included).  Rows, top to bottom:
+#   0-15   open lid, tilted back (domed top edge, green panels, gold edge,
+#          gold hinge band), seen behind the card
+#   16     back rim of the box, 17-18 dark interior the card rises out of
+#   19     outline on top of the front rim
+#   20-30  chest front (gold rim with white glints, green panels, gold side
+#          straps, lock plate, gold base band); 31 outline
 ART = 32
-CARD = (7, 0, 18, 22)      # x, y, w, h of the card body (outline drawn around it)
+BODY_X = (2, 29)           # chest / lid horizontal extent
+CARD = (7, 3, 18, 20)      # x, y, w, h of the card body (outline drawn around it)
 FRAME_W = 2
-GLYPH_POS = (10, 3)        # glyph top-left in art coordinates
-LID = (3, 3, 26, 10)       # opened lid (inside face visible), behind the card; domed top
-BACK = 14                  # row of the back rim of the box
-RIM = 18                   # top row of the front rim (overlaps the card)
-BODY_BOTTOM = 28
+GLYPH_POS = (10, 6)        # glyph top-left in art coordinates
+LID_TOP = 1
+LID_INSETS = {0: 6, 1: 3, 2: 1}   # domed / receding top edge of the lid
+HINGE = 14                 # lid hinge band rows HINGE..HINGE+1
+BACK = 16                  # back rim of the box
+RIM = 20                   # top row of the front rim (overlaps the card)
+BODY_BOTTOM = 30
 
 
 def rect(x, y, w, h):
@@ -104,7 +114,6 @@ def card_layer(st):
         fx, fy = i - x, j - y
         inner = FRAME_W <= fx < w - FRAME_W and FRAME_W <= fy < h - FRAME_W
         if inner:
-            # face: lit top-left edge, shaded right edge
             if fx == FRAME_W or fy == FRAME_W:
                 c = FACE_HI
             elif fx == w - FRAME_W - 1:
@@ -112,7 +121,6 @@ def card_layer(st):
             else:
                 c = FACE
         else:
-            # frame: highlight on top/left, shadow on right/bottom
             if fy == 0 or fx == 0:
                 c = fr[0]
             elif fx == w - 1 or fy == h - 1:
@@ -120,7 +128,6 @@ def card_layer(st):
             else:
                 c = fr[1]
         lay[(i, j)] = c
-    # inner frame corners: round them too (the face is a rounded rect)
     for (i, j) in [(x + FRAME_W, y + FRAME_W), (x + w - FRAME_W - 1, y + FRAME_W)]:
         lay[(i, j)] = fr[1]
     gx, gy = GLYPH_POS
@@ -133,84 +140,95 @@ def card_layer(st):
 
 
 def lid_layer(st):
-    """Open lid seen from the front: its inside face, gold-rimmed."""
+    """The open lid behind the card + the dark interior of the box."""
     wd = WOOD[st['wood']]
-    x, y, w, h = LID
-    shape = rect(x, y, w, h)
-    # domed top: row 0 inset 5, row 1 inset 2, row 2 inset 1
-    for j, inset in ((0, 5), (1, 2), (2, 1)):
-        shape -= {(i, y + j) for i in range(x, x + inset)}
-        shape -= {(i, y + j) for i in range(x + w - inset, x + w)}
+    x0, x1 = BODY_X
     lay = {}
-    for (i, j) in shape:
-        fx, fy = i - x, j - y
-        top = (fy == 0) or (fy == 1 and (fx < 5 or fx >= w - 5)) or (fy == 2 and (fx < 2 or fx >= w - 2))
-        if top:
-            c = G_HI
-        elif fy <= 2 or fx <= 1 or fx >= w - 2:
-            c = G_HI if fy == 0 else (G_LO if fx >= w - 2 else G_MID)
-        elif fy >= h - 1:
-            c = G_LO
-        else:
-            c = wd[0] if (fx in (2, w - 3) or fy == 2) else wd[1]
-        lay[(i, j)] = c
-    # the box's back rim and dark interior between lid and front rim,
-    # with treasure-light spilling up next to the card
-    for i in range(x, x + w):
+    for j in range(LID_TOP, HINGE + 2):
+        r = j - LID_TOP
+        inset = LID_INSETS.get(r, 0)
+        for i in range(x0 + inset, x1 - inset + 1):
+            edge_l, edge_r = i == x0 + inset, i == x1 - inset
+            if r == 0 or (r in LID_INSETS and (edge_l or edge_r or i <= x0 + LID_INSETS.get(r - 1, inset) or
+                                                i >= x1 - LID_INSETS.get(r - 1, inset))):
+                c = G_HI if r == 0 or edge_l or i < (x0 + x1) / 2 else G_MID   # lit domed rim
+            elif j > HINGE:
+                c = G_LO                                                       # hinge band
+            elif edge_l:
+                c = G_MID
+            elif edge_r:
+                c = G_LO
+            else:
+                # green panel; glossy highlight band like SPD's chest lid
+                k = j - LID_TOP
+                if k in (4, 5):
+                    c = WHITE if (i in (x0 + 1, x1 - 1)) else wd[3]
+                elif k == 3 or k == 6:
+                    c = wd[2]
+                elif k >= 10:
+                    c = wd[0]         # lid's lower part falls into shadow
+                else:
+                    c = wd[1]
+            lay[(i, j)] = c
+    for i in range(x0, x1 + 1):
         lay[(i, BACK)] = G_LO
-        for j in range(BACK + 1, RIM):
+        for j in range(BACK + 1, RIM - 1):
             lay[(i, j)] = VOID
+    # a little treasure light spilling up beside the card
     cx0, cx1 = CARD[0] - 2, CARD[0] + CARD[2] + 1
-    for (i, j, c) in [(cx0, RIM - 1, G_HI), (cx0 - 1, RIM - 1, G_MID), (cx0, RIM - 2, G_MID),
-                      (cx1, RIM - 1, G_HI), (cx1 + 1, RIM - 1, G_MID), (cx1, RIM - 2, G_MID)]:
+    for (i, j, c) in [(cx0, RIM - 2, G_HI), (cx0 - 1, RIM - 2, G_MID),
+                      (cx1, RIM - 2, G_HI), (cx1 + 1, RIM - 2, G_MID)]:
         lay[(i, j)] = c
     return lay
 
 
 def body_layer(st):
+    """Chest front, after the original SPD launcher chest: gold rim with white
+    glints, green panels with a checker texture, gold side straps, lock plate."""
     wd = WOOD[st['wood']]
-    x0, x1 = LID[0], LID[0] + LID[2] - 1
+    x0, x1 = BODY_X
     lay = {}
-    # (body spans the lid's width)
     shape = rect(x0, RIM, x1 - x0 + 1, BODY_BOTTOM - RIM + 1)
-    shape -= {(x0, BODY_BOTTOM), (x1, BODY_BOTTOM), (x0 + 1, BODY_BOTTOM), (x1 - 1, BODY_BOTTOM),
-              (x0, BODY_BOTTOM - 1), (x1, BODY_BOTTOM - 1)}
-    cx = (x0 + x1) / 2
+    shape -= {(x0, BODY_BOTTOM), (x1, BODY_BOTTOM)}
     for (i, j) in shape:
         fx, fy = i - x0, j - RIM
-        side = fx <= 2 or i >= x1 - 2
+        rx = x1 - i
+        strap = fx <= 1 or rx <= 1
         if fy == 0:
-            c = G_HI if not i >= x1 - 1 else G_MID          # lit top edge of the rim
-        elif fy in (1, 2):
-            c = G_MID if not i >= x1 - 1 else G_LO
-        elif fy == 3:
+            c = WHITE if (fx in (0, 1) or rx == 1) else (G_HI if rx > 0 else G_MID)
+        elif fy == 1:
             c = G_LO
-        elif j >= BODY_BOTTOM - 1:
-            c = G_MID if j == BODY_BOTTOM - 1 else G_LO      # bottom band
-        elif side:
-            c = G_MID if (fx == 1 or i == x1 - 1) else (G_HI if fx == 0 else G_LO)
+        elif j == BODY_BOTTOM:
+            c = G_LO
+        elif j == BODY_BOTTOM - 1:
+            c = G_MID
+        elif strap:
+            c = (G_HI, G_MID)[fx] if fx <= 1 else (G_LO, G_MID)[rx]
         else:
-            # planks: boards with dark seams, lit just under the rim
-            if fy == 4:
-                c = wd[3]
-            elif (j - RIM) % 3 == 0:
-                c = wd[0]
+            if fy == 2:
+                c = wd[2]                          # lit top of the panel
+            elif (i + j) % 2 == 0 and fy >= 4:
+                c = wd[0]                          # checker texture (as in the SPD icon)
             else:
-                c = wd[2] if fy == 5 or fy == 8 else wd[1]
-            if fx == 3:
-                c = wd[0]
+                c = wd[1]
         lay[(i, j)] = c
-    # lock plate hanging from the rim
-    px = int(cx) - 2
-    for i in range(px, px + 6):
-        for j in range(RIM + 2, RIM + 8):
-            edge = i in (px, px + 5) or j == RIM + 7
-            lay[(i, j)] = G_LO if edge else (G_HI if (i == px + 1 or j == RIM + 2) else G_MID)
-    lay[(px + 2, RIM + 4)] = VOID
-    lay[(px + 3, RIM + 4)] = VOID
-    lay[(px + 2, RIM + 5)] = VOID
-    lay[(px + 3, RIM + 5)] = VOID
-    lay[(px + 3, RIM + 6)] = G_LO
+    # lock plate on the front, hanging from the rim
+    px0 = (x0 + x1) // 2 - 2
+    for i in range(px0, px0 + 6):
+        for j in range(RIM + 1, RIM + 8):
+            if j == RIM + 1:
+                c = WHITE if i < px0 + 5 else G_HI
+            elif i == px0:
+                c = G_HI
+            elif i == px0 + 5 or j == RIM + 7:
+                c = G_LO
+            else:
+                c = G_MID
+            lay[(i, j)] = c
+    for (i, j) in [(px0 + 2, RIM + 3), (px0 + 3, RIM + 3), (px0 + 2, RIM + 4), (px0 + 3, RIM + 4),
+                   (px0 + 2, RIM + 5)]:
+        lay[(i, j)] = VOID
+    lay[(px0 + 3, RIM + 5)] = G_LO
     return lay
 
 
@@ -219,33 +237,30 @@ def dilate8(s):
 
 
 def sparkles():
-    """Four-point loot sparkles (white core, gold arms) around the card."""
+    """Four-point loot sparkles (white core, gold arms)."""
     out = {}
     for (x, y, big) in SPARKS:
         out[(x, y)] = WHITE
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             out[(x + dx, y + dy)] = G_HI
-        if big:
-            for dx, dy in ((2, 0), (-2, 0), (0, 2), (0, -2)):
-                out[(x + dx, y + dy)] = G_MID
     return out
 
 
-SPARKS = [(26, 1, False), (5, 2, False)]
+SPARKS = [(27, 2, False), (4, 2, False)]
 
 
 def art(st=None):
     st = st or STYLE
     lid, card, body = lid_layer(st), card_layer(st), body_layer(st)
     img = Image.new('RGBA', (ART, ART), (0, 0, 0, 0))
-    # back to front: lid/interior, card (with its own outline), front of chest
     union = set(lid) | set(card) | set(body)
+    x0, x1 = BODY_X
     layers = [
         {p: OUT for p in dilate8(union) - union},          # one continuous outer outline
         lid,
-        {p: OUT for p in dilate8(set(card)) if p in lid},  # card separated from lid
+        {p: OUT for p in dilate8(set(card)) if p in lid},  # card separated from the lid
         card,
-        {p: OUT for p in rect(LID[0], RIM - 1, LID[2], 1)},  # rim top edge line
+        {p: OUT for p in rect(x0, RIM - 1, x1 - x0 + 1, 1)},  # edge line on top of the front rim
         body,
         sparkles(),
     ]
@@ -349,7 +364,13 @@ def legacy(grid, st=None):
 
 DENS = {'mdpi': 2, 'hdpi': 3, 'xhdpi': 4, 'xxhdpi': 6, 'xxxhdpi': 8}
 LEGACY = {'ldpi': (36, 1), 'hdpi': (36, 2), 'xxhdpi': (36, 4),
-          'xhdpi': (32, 3), 'xxxhdpi': (32, 6), 'mdpi': (48, 1)}
+          'xhdpi': (32, 3), 'xxxhdpi': (32, 6)}
+
+
+def legacy_mdpi(st=None):
+    """48px legacy icon: the 32-grid tile at 1.5x nearest neighbour.  Pixels
+    alternate 1px/2px, so every 2px stroke of the あ becomes an even 3px."""
+    return legacy(32, st).resize((48, 48), Image.NEAREST)
 
 
 def up(img, k):
@@ -366,6 +387,7 @@ def write_repo(root):
         up(mono, k).save(os.path.join(p, 'ic_launcher_monochrome.png'))
     for d, (g, k) in LEGACY.items():
         up(legacy(g), k).save(os.path.join(res, 'mipmap-' + d, 'ic_launcher.png'))
+    legacy_mdpi().save(os.path.join(res, 'mipmap-mdpi', 'ic_launcher.png'))
 
 
 # ---------------------------------------------------------------- previews
@@ -409,13 +431,17 @@ def previews(d, tag, st=None):
 
 
 def actual_sheet(st=None):
-    """Real pixel sizes: legacy 48/96/192 (top), adaptive circle 48/96/192 (bottom)."""
+    """Real pixel sizes.  Top: legacy mdpi 48 (1x), xhdpi 96, xxxhdpi 192, and
+    mdpi again at 4x to inspect its pixels.  Bottom: adaptive (circle mask)
+    at 48/96/192 as a launcher would show it."""
     comp = composite(st)
-    sheet = Image.new('RGBA', (48 + 96 + 192 + 40, 2 * 192 + 30), (40, 44, 52, 255))
+    sheet = Image.new('RGBA', (48 + 96 + 192 + 192 + 50, 2 * 192 + 30), (40, 44, 52, 255))
     x = 10
-    for g, k, s in [(48, 1, 48), (32, 3, 96), (32, 6, 192)]:
-        sheet.alpha_composite(up(legacy(g, st), k), (x, 10))
-        # adaptive at mdpi/xhdpi/xxxhdpi-ish sizes: visible 72/108 of the canvas
+    for img in [legacy_mdpi(st), up(legacy(32, st), 3), up(legacy(32, st), 6), up(legacy_mdpi(st), 4)]:
+        sheet.alpha_composite(img, (x, 10))
+        x += img.width + 10
+    x = 10
+    for s in (48, 96, 192):
         # (preview only: the launcher itself rescales the 72dp viewport)
         c = circle_crop(up(comp, 8)).resize((s, s), Image.BOX)
         sheet.alpha_composite(c, (x, 202 + 10))

@@ -134,10 +134,9 @@ FR_EDGE = (80, 26, 26)
 FACE_TOP, FACE_BOT = (255, 244, 208), (217, 201, 161)
 FACE_RIM = (157, 136, 97)       # inner bevel: shadowed top/left of the recessed face
 FACE_LIP = (255, 248, 215)      # lit bottom edge of the recess
-INK = (179, 0, 30)
-INK_DK = (128, 30, 10)
+INK = (41, 30, 0)               # same near-black ink as the launcher icon
 # glow layer: the あ pulses red-hot (the "signs" layer is an alpha-animated image)
-GLOW_CORE = (255, 84, 40, 255)
+GLOW_CORE = (210, 70, 30, 255)
 GLOW_HALO = (236, 34, 8, 60)
 
 # bold 12x13 あ (same design as the launcher icon card), drawn at 2x for the
@@ -159,8 +158,20 @@ GLYPH12 = [
 ]
 GLYPH12_2X = [''.join(ch * 2 for ch in row) for row in GLYPH12 for _ in (0, 1)]
 
-CARD = dict(w=32, h=34, frame=3, glyph=GLYPH12_2X, off=(4, 4))
-CARD_L = dict(w=32, h=43, frame=3, glyph=GLYPH12_2X, off=(4, 8))
+
+def nn_scale(rows, f):
+    """Nearest-neighbour scale of a glyph bitmap; at 1.5x every 2px stroke
+    becomes an even 3px."""
+    h, w = len(rows), len(rows[0])
+    H, W = int(round(h * f)), int(round(w * f))
+    return [''.join(rows[min(h - 1, int(y / f))][min(w - 1, int(x / f))] for x in range(W)) for y in range(H)]
+
+
+GLYPH12_15X = nn_scale(GLYPH12, 1.5)
+
+# portrait-format (3:4) cards like the icon's
+CARD = dict(w=26, h=34, frame=3, glyph=GLYPH12_15X, off=(4, 7))
+CARD_L = dict(w=36, h=48, frame=3, glyph=GLYPH12_2X, off=(6, 11))
 
 
 def lerp(a, b, t):
@@ -336,7 +347,7 @@ def build_land(src):
     return out, nglow
 
 
-LAYOUT_L = dict(anki_y=2, card_y=5, card_gap=6)
+LAYOUT_L = dict(anki_y=2, card_y=2, card_gap=3)
 
 
 def build(src):
