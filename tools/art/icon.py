@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Anki Dungeon launcher icon generator: an open SPD treasure chest with an
+"""Cram Dungeon launcher icon generator: an open SPD treasure chest with an
 Isaac-style flashcard (bearing a bold hand-pixelled あ) rising out of it.
 
 Everything is placed by hand on a low-res grid and integer-scaled with

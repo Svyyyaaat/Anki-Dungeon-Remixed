@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Anki Dungeon title logo generator.
+"""Cram Dungeon title logo generator.
 
 Rebuilds the portrait (139x100 @ 0,0) and landscape (240x57 @ 0,100) title
 logos in interfaces/banners.png plus their glow ("signs") layers at
@@ -8,21 +8,22 @@ are left unchanged.
 
 Every letter is cut from SPD's original logo so the bevel, gradient, moss and
 cracks are native:
+  C  <- small 'G' of DUNGEON without its bar/spur (see letters())
+  R  <- 'R' of SHATTERED
   A  <- 'A' of SHATTERED
-  N  <- small 'N' of DUNGEON
-  K  <- stem of PIXEL's 'I' + right half of PIXEL's 'X'
-  I  <- 'I' of PIXEL
+  M  <- left half of DUNGEON's small 'N' + its mirror image
   DUNGEON line is kept untouched.
 The glow layer pixels travel with their letters.  The soft drop shadow around
 the new letters is regenerated with a model fitted to the original halo
 (mask shifted 1px down, gaussian r=1.0, x1.5 -> mean error ~7/255).
-An Isaac-style flashcard (red frame, cream face, red hand-pixelled あ, in the
+An Isaac-style flashcard (green frame, cream face, near-black hand-pixelled あ, in the
 letters' bevel treatment) sits on top (portrait) / to the left (landscape);
-its あ pulses red in the glow layer.
+its あ pulses green in the glow layer like the runes.
 
-Usage: python3 logo.py --src ORIGINAL_banners.png [--out banners.png] [--preview DIR]
-The original SPD banners.png is kept in tools/anki_art/spd_banners_orig.png so
-the script stays reproducible after the repo file is replaced.
+Usage: python3 logo.py [--src ORIGINAL_banners.png] [--out banners.png] [--preview DIR]
+The original SPD banners.png is kept next to this script
+(spd_banners_orig.png, the --src default) so the script stays reproducible
+after the repo file is replaced.
 """
 import argparse
 import os
@@ -54,15 +55,7 @@ def width(letter):
     return max(x for x, _ in letter) + 1
 
 
-def weld(letter, col, src_col, rows, fill_cols=()):
-    """Turn a stem's dark inner edge into its interior colour on the given
-    rows, so an arm can join it without a seam (keeps the glow pixel)."""
-    for y in rows:
-        if (col, y) in letter and (src_col, y) in letter:
-            letter[(col, y)] = (letter[(src_col, y)][0], letter[(col, y)][1])
-            for x in fill_cols:
-                if (x, y) not in letter or True:
-                    letter[(x, y)] = (letter[(src_col, y)][0], letter.get((x, y), (None, (0, 0, 0, 0)))[1])
+M_CUT = 55
 
 
 def letters(port, pglow):
@@ -73,9 +66,7 @@ def letters(port, pglow):
       R  'R' of SHATTERED
       C  small 'G' of DUNGEON with its bar/spur removed and the lower
          terminal re-capped with the bar's own top-edge highlight pixels
-      M  two PIXEL 'I' stems with the upper (V) half of PIXEL's 'X' between
-         them; the stems' inner edges are welded to the arms and the V's cut
-         bottom gets the letters' dark bottom-edge colour
+      M  left half of DUNGEON's small 'N' + its horizontal mirror
     """
     L = {}
     # 'A' of SHATTERED: rows 15-32, x 32-51; the T's bar starts at x48 on top rows
@@ -90,21 +81,15 @@ def letters(port, pglow):
     if (72 - 63, 77 - 63) in c:
         c[(72 - 63, 77 - 63)] = (port.getpixel((72, 71)), (0, 0, 0, 0))
     L['C'] = c
-    # 'M' = I stem + upper half of X (V) + I stem
-    m = {}
-    for (x, y), v in opaque_cut(port, pglow, 58, 39, 77, 47).items():
-        m[(x, y)] = v
-    for (x, y), v in opaque_cut(port, pglow, 50, 39, 57, 56).items():
-        m[(x, y)] = v                # left stem at dx 0..7
-        m[(x + 11, y)] = v           # right stem at dx 11..18
-    rows_l = [y for y in range(18) if (8, y) in m or (7, y) in m and y not in (0, 1, 16, 17)]
-    rows_r = [y for y in range(18) if (10, y) in m or (11, y) in m and y not in (0, 1, 16, 17)]
-    weld(m, 6, 4, [y for y in range(2, 16) if (8, y) in m], fill_cols=(7,))
-    weld(m, 12, 14, [y for y in range(2, 16) if (10, y) in m], fill_cols=(11,))
-    BOTTOM_EDGE = (15, 18, 8, 255)
-    for x in range(7, 12):
-        if (x, 8) in m and x not in (0,):
-            m[(x, 8)] = (BOTTOM_EDGE, m[(x, 8)][1])
+    # 'M' = left half of DUNGEON's small 'N' (left stem + the top of its
+    # diagonal) plus its mirror image.  These letters are lit from the top
+    # (light top edge, dark bottom) with equally dark left/right edges, so a
+    # horizontal mirror keeps the lighting consistent.
+    half = opaque_cut(port, pglow, 44, 63, M_CUT, 80)
+    hw = M_CUT - 44 + 1
+    m = dict(half)
+    for (x, y), v in half.items():
+        m[(2 * hw - 1 - x, y)] = v
     L['M'] = m
     return L
 
@@ -153,17 +138,19 @@ GLYPH18 = [
 HILITE = (212, 219, 200)
 BOTTOM = (15, 18, 8)
 EDGE_DARK = (33, 38, 23)
-# Isaac-style card: red frame (items.png reds) + cream face (scroll parchment)
-FR_HI = (224, 73, 73)
-FR_TOP, FR_BOT = (179, 0, 30), (128, 30, 10)
-FR_EDGE = (80, 26, 26)
+# Isaac-style card: green frame (SPD chest greens / the logo's rune green,
+# same as the launcher icon's card) + cream face (scroll parchment)
+FR_HI = (105, 187, 119)
+FR_TOP, FR_BOT = (27, 156, 27), (14, 79, 14)
+FR_EDGE = (10, 61, 10)
 FACE_TOP, FACE_BOT = (255, 244, 208), (217, 201, 161)
 FACE_RIM = (157, 136, 97)       # inner bevel: shadowed top/left of the recessed face
 FACE_LIP = (255, 248, 215)      # lit bottom edge of the recess
 INK = (41, 30, 0)               # same near-black ink as the launcher icon
-# glow layer: the あ pulses red-hot (the "signs" layer is an alpha-animated image)
-GLOW_CORE = (210, 70, 30, 255)
-GLOW_HALO = (236, 34, 8, 60)
+# glow layer: the あ pulses in the same green as the runes on the letters
+# (the "signs" layer is drawn additively with an animated alpha)
+GLOW_CORE = (48, 147, 65, 255)
+GLOW_HALO = (48, 147, 65, 51)
 
 # bold 12x13 あ (same design as the launcher icon card), drawn at 2x for the
 # big landscape card so it reads like a card-suit symbol
@@ -282,7 +269,7 @@ def build_port(src):
     word = ['C', 'R', 'A', 'M']
     total = sum(width(L[c]) for c in word) + gap * (len(word) - 1)
     x = (W - total) // 2
-    y = LAYOUT['anki_y']
+    y = LAYOUT['word_y']
     for c in word:
         place(new, nglow, L[c], x, y)
         x += width(L[c]) + gap
@@ -317,11 +304,11 @@ def build_port(src):
     return out, glow
 
 
-LAYOUT = dict(anki_y=39, card_y=1)
+LAYOUT = dict(word_y=39, card_y=1)
 
 
 def build_land(src):
-    """Landscape: [card] ANKI on line 1, DUNGEON (moved over from the portrait
+    """Landscape: [card] CRAM on line 1, DUNGEON (moved over from the portrait
     logo, it has the big D and N plus underline) on line 2."""
     land = src.crop(LAND)
     port = src.crop(PORT)
@@ -332,7 +319,7 @@ def build_land(src):
     nglow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
 
     # line 2: DUNGEON block from the portrait logo (opaque rows 61-86);
-    # the whole [card | ANKI/DUNGEON] group is centred
+    # the whole [card | CRAM/DUNGEON] group is centred
     group = CARD_L['w'] + LAYOUT_L['card_gap'] + 133
     dx, dy = (W - group) // 2 + CARD_L['w'] + LAYOUT_L['card_gap'] - 3, 24 - 61
     for yy in range(61, 87):
@@ -346,14 +333,14 @@ def build_land(src):
             if g[3] and 0 <= yy + dy < H:
                 nglow.putpixel((xx + dx, yy + dy), g)
 
-    # line 1: ANKI centred over DUNGEON
+    # line 1: CRAM centred over DUNGEON
     gap = 1
     word = ['C', 'R', 'A', 'M']
     total = sum(width(L[c]) for c in word) + gap * (len(word) - 1)
     dun_x0, dun_x1 = 3 + dx, 135 + dx       # DUNGEON's opaque extent (portrait x 3..135)
     x = (dun_x0 + dun_x1 + 1 - total) // 2
     for c in word:
-        place(new, nglow, L[c], x, LAYOUT_L['anki_y'])
+        place(new, nglow, L[c], x, LAYOUT_L['word_y'])
         x += width(L[c]) + gap
     # the card stands to the left of both lines, vertically centred on them
     stamp(new, nglow, dun_x0 - LAYOUT_L['card_gap'] - CARD_L['w'], LAYOUT_L['card_y'], CARD_L)
@@ -373,7 +360,7 @@ def build_land(src):
     return out, nglow
 
 
-LAYOUT_L = dict(anki_y=2, card_y=2, card_gap=3)
+LAYOUT_L = dict(word_y=2, card_y=2, card_gap=3)
 
 
 def build(src):
