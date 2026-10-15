@@ -3,22 +3,44 @@ package com.cramdungeon.android;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.graphics.Color;
+import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
+import android.webkit.MimeTypeMap;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+
+import com.cramdungeon.CardMedia;
+
+import org.json.JSONArray;
+
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Shows cards in a WebView laid over the game surface. One overlay session can
  * go through several cards (bury/suspend bring a new one, back brings one back)
  * and ends when a card is graded. Only touched from the Android UI thread. The
  * thinking clock keeps running if the app is left.
+ *
+ * <p>Pages load from a made-up https origin so that the card's own references
+ * ({@code <img src="cat.jpg">}, deck fonts) resolve to the imported card media,
+ * and the page chrome lives under {@code /_cram/}. Audio plays natively.
  */
 final class CardOverlay {
 
@@ -37,9 +59,18 @@ final class CardOverlay {
 
     private static final Handler handler = new Handler(Looper.getMainLooper());
 
+    static final String HOST = "cram.media";
+    static final String BASE_URL = "https://" + HOST + "/";
+    // page chrome: /_cram/<file> is assets/anki/<file>, /_cram/fonts/<file> is assets/fonts/<file>
+    private static final String CHROME = "_cram";
+
     private static volatile FrameLayout root;
     private static WebView web;
     private static Listener listener;
+    private static CardMedia media;
+
+    private static final ArrayDeque<File> soundQueue = new ArrayDeque<>();
+    private static MediaPlayer player;
 
     private static long thinkLimitMs;
     // the clock: elapsed thinking time is now - shownAt while the question is up
@@ -57,10 +88,11 @@ final class CardOverlay {
     }
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
-    static void show(Activity activity, String html, long thinkLimit, Listener onEvents) {
+    static void show(Activity activity, CardMedia cardMedia, String html, long thinkLimit, Listener onEvents) {
         dismiss();
 
         listener = onEvents;
+        media = cardMedia;
         thinkLimitMs = thinkLimit;
         finished = false;
 
@@ -75,6 +107,11 @@ final class CardOverlay {
             @Override
             public void onPageFinished(WebView view, String url) {
                 scheduleTimeout();
+            }
+
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return serve(view.getContext(), request.getUrl());
             }
         });
         // the card has to be answered; back does nothing while it is up
@@ -123,7 +160,8 @@ final class CardOverlay {
         revealed = false;
         timedOut = false;
         busy = false;
-        web.loadDataWithBaseURL("file:///android_asset/anki/", html, "text/html", "utf-8", null);
+        stopSounds();
+        web.loadDataWithBaseURL(BASE_URL, html, "text/html", "utf-8", null);
     }
 
     private static long elapsed() {
@@ -203,6 +241,7 @@ final class CardOverlay {
 
     private static void dismiss() {
         handler.removeCallbacks(timeout);
+        stopSounds();
         if (root != null) {
             if (root.getParent() instanceof ViewGroup) {
                 ((ViewGroup) root.getParent()).removeView(root);
@@ -213,6 +252,133 @@ final class CardOverlay {
         web = null;
         listener = null;
         busy = false;
+    }
+
+    // --- page resources (WebView IO thread)
+
+    private static WebResourceResponse serve(android.content.Context context, Uri url) {
+        if (!HOST.equals(url.getHost())) {
+            return null;
+        }
+        List<String> path = url.getPathSegments();
+        try {
+            if (path.size() >= 2 && CHROME.equals(path.get(0))) {
+                List<String> rest = path.subList(1, path.size());
+                if (rest.contains("..")) {
+                    return notFound();
+                }
+                String asset = rest.size() >= 2 && "fonts".equals(rest.get(0))
+                        ? "fonts/" + rest.get(1)
+                        : "anki/" + android.text.TextUtils.join("/", rest);
+                return new WebResourceResponse(mimeType(asset), null, context.getAssets().open(asset));
+            }
+            CardMedia store = media;
+            File file = path.size() == 1 && store != null ? store.file(path.get(0)) : null;
+            if (file != null) {
+                return new WebResourceResponse(mimeType(file.getName()), null, new FileInputStream(file));
+            }
+        } catch (IOException e) {
+            // fall through to a 404
+        }
+        return notFound();
+    }
+
+    private static WebResourceResponse notFound() {
+        return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
+                Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
+    }
+
+    private static String mimeType(String name) {
+        int dot = name.lastIndexOf('.');
+        String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
+        switch (ext) {
+            case "svg":
+                return "image/svg+xml";
+            case "ttf":
+                return "font/ttf";
+            case "otf":
+                return "font/otf";
+            case "woff":
+                return "font/woff";
+            case "woff2":
+                return "font/woff2";
+            case "css":
+                return "text/css";
+            default:
+                String type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+                return type != null ? type : "application/octet-stream";
+        }
+    }
+
+    // --- audio (UI thread)
+
+    private static void playSounds(String namesJson) {
+        stopSounds();
+        CardMedia store = media;
+        if (store == null || web == null) {
+            return;
+        }
+        try {
+            JSONArray names = new JSONArray(namesJson);
+            for (int i = 0; i < names.length(); i++) {
+                File f = store.file(names.optString(i));
+                if (f != null) {
+                    soundQueue.add(f);
+                }
+            }
+        } catch (Exception e) {
+            return;
+        }
+        playNext();
+    }
+
+    private static void playNext() {
+        releasePlayer();
+        File next = soundQueue.poll();
+        if (next == null) {
+            return;
+        }
+        MediaPlayer p = new MediaPlayer();
+        player = p;
+        try {
+            p.setDataSource(next.getAbsolutePath());
+            p.setOnCompletionListener(mp -> {
+                if (player == mp) {
+                    playNext();
+                }
+            });
+            p.setOnErrorListener((mp, what, extra) -> {
+                if (player == mp) {
+                    playNext();
+                }
+                return true;
+            });
+            p.setOnPreparedListener(mp -> {
+                if (player == mp) {
+                    mp.start();
+                }
+            });
+            p.prepareAsync();
+        } catch (IOException | RuntimeException e) {
+            playNext();
+        }
+    }
+
+    private static void releasePlayer() {
+        if (player != null) {
+            MediaPlayer p = player;
+            player = null;
+            try {
+                p.release();
+            } catch (RuntimeException ignored) {
+                // already released
+            }
+        }
+    }
+
+    private static void stopSounds() {
+        soundQueue.clear();
+        releasePlayer();
     }
 
     private static class Bridge {
@@ -234,6 +400,17 @@ final class CardOverlay {
         @JavascriptInterface
         public void undoSkip() {
             handler.post(CardOverlay::onUndoSkip);
+        }
+
+        /** Plays the named card media files one after another, replacing whatever was playing. */
+        @JavascriptInterface
+        public void play(String namesJson) {
+            handler.post(() -> playSounds(namesJson));
+        }
+
+        @JavascriptInterface
+        public void stopAudio() {
+            handler.post(CardOverlay::stopSounds);
         }
 
         @JavascriptInterface

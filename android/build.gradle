@@ -84,6 +84,8 @@ dependencies {
     natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-x86"
     natives "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-x86_64"
     implementation "com.badlogicgames.gdx-controllers:gdx-controllers-android:$gdxControllersVersion"
+    // newer Anki exports compress media with zstd
+    implementation 'com.github.luben:zstd-jni:1.5.6-9@aar'
 }
 
 // called every time gradle gets executed, takes the native dependencies of

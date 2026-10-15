@@ -15,6 +15,7 @@ import android.util.Log;
 
 import com.cramdungeon.AnkiDeck;
 import com.cramdungeon.AnkiPlatform;
+import com.cramdungeon.CardMedia;
 import com.cramdungeon.CardOutcome;
 import com.cramdungeon.CardRequest;
 import com.watabou.noosa.Game;
@@ -25,6 +26,8 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -37,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -57,8 +61,11 @@ public class AnkiDroidBridge implements AnkiPlatform {
     private static final Uri DECKS = Uri.withAppendedPath(BASE, "decks");
     private static final Uri SCHEDULE = Uri.withAppendedPath(BASE, "schedule");
 
-    // AnkiDroid hands sound tags through as text; we can't play them
-    private static final Pattern SOUND_TAG = Pattern.compile("\\[(sound|anki:play)[^\\]]*\\]");
+    // AnkiDroid hands audio over as [sound:file]; other av tags (TTS) can't be resolved here
+    private static final Pattern SOUND_TAG = Pattern.compile("\\[sound:([^\\]]+)\\]");
+    private static final Pattern OTHER_AV_TAG = Pattern.compile("\\[anki:play[^\\]]*\\]");
+    private static final Pattern SRC_ATTR = Pattern.compile("\\bsrc\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')",
+            Pattern.CASE_INSENSITIVE);
 
     private static final int PERMISSION_REQUEST = 0xA4C1;
 
@@ -66,8 +73,11 @@ public class AnkiDroidBridge implements AnkiPlatform {
     private final Activity activity;
     private Consumer<Boolean> permissionCallback;
 
+    private final CardMedia media;
+
     public AnkiDroidBridge(Activity activity) {
         this.activity = activity;
+        this.media = MediaImportActivity.store(activity);
     }
 
     // new cards the player asked to learn once the due ones ran out (noteId, ord)
@@ -302,7 +312,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
 
             lastCardKey = session.current.key();
             final String page = html;
-            onUiThread(() -> CardOverlay.show(activity, page, request.thinkTimeMs, session));
+            onUiThread(() -> CardOverlay.show(activity, media, page, request.thinkTimeMs, session));
         });
     }
 
@@ -344,6 +354,29 @@ public class AnkiDroidBridge implements AnkiPlatform {
                 intent.setData(Uri.parse("https://play.google.com/store/apps/details?id=" + ANKIDROID_PACKAGE));
                 ctx.startActivity(intent);
             }
+        });
+    }
+
+    @Override
+    public String mediaSummary() {
+        int count = media.count();
+        if (count == 0) {
+            return "No card media imported yet.";
+        }
+        return count + (count == 1 ? " media file" : " media files")
+                + " imported (" + MediaImportActivity.megabytes(media.bytes()) + ").";
+    }
+
+    @Override
+    public void importMedia() {
+        onUiThread(() -> MediaImportActivity.pick(activity));
+    }
+
+    @Override
+    public void clearMedia(Runnable onDone) {
+        io.execute(() -> {
+            media.clear();
+            post(onDone);
         });
     }
 
@@ -417,6 +450,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
         config.put("simple", request.simpleGrading);
         config.put("startElapsedMs", startElapsedMs);
         config.put("canUndo", canUndo);
+        config.put("missingMedia", missingMedia(question, answer));
 
         return template()
                 .replace("%%CONFIG%%", config.toString())
@@ -441,11 +475,67 @@ public class AnkiDroidBridge implements AnkiPlatform {
         return css;
     }
 
+    /** Sound tags become play buttons (the page autoplays them); unplayable av tags go. */
     private static String clean(String html) {
         if (html == null) {
             return "";
         }
-        return SOUND_TAG.matcher(html).replaceAll("");
+        html = OTHER_AV_TAG.matcher(html).replaceAll("");
+        Matcher m = SOUND_TAG.matcher(html);
+        StringBuffer out = new StringBuffer();
+        while (m.find()) {
+            String name = escapeAttr(m.group(1));
+            m.appendReplacement(out, Matcher.quoteReplacement(
+                    "<button class=\"snd\" data-snd=\"" + name + "\" title=\"" + name + "\">\u25B6</button>"));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    private static String escapeAttr(String s) {
+        return s.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private static String unescapeAttr(String s) {
+        return s.replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">")
+                .replace("&amp;", "&");
+    }
+
+    /** How many local media files the card refers to that haven't been imported. */
+    private int missingMedia(String question, String answer) {
+        Set<String> names = new HashSet<>();
+        for (String html : new String[]{question, answer}) {
+            if (html == null) {
+                continue;
+            }
+            Matcher sound = SOUND_TAG.matcher(html);
+            while (sound.find()) {
+                names.add(sound.group(1));
+            }
+            Matcher src = SRC_ATTR.matcher(html);
+            while (src.find()) {
+                String value = unescapeAttr(src.group(1) != null ? src.group(1) : src.group(2)).trim();
+                // remote images and inline data aren't card media
+                if (!value.isEmpty() && !value.contains("/") && !value.contains(":")) {
+                    names.add(value);
+                }
+            }
+        }
+        int missing = 0;
+        for (String name : names) {
+            if (media.file(name) == null && media.file(urlDecode(name)) == null) {
+                missing++;
+            }
+        }
+        return missing;
+    }
+
+    private static String urlDecode(String s) {
+        try {
+            return URLDecoder.decode(s.replace("+", "%2B"), "UTF-8");
+        } catch (UnsupportedEncodingException | IllegalArgumentException e) {
+            return s;
+        }
     }
 
     private void buryOrSuspend(CardRef card, String action) {

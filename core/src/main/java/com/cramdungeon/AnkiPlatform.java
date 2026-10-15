@@ -28,6 +28,14 @@ public interface AnkiPlatform {
 
     void openAnkiDroid();
 
+    /** One line on the imported card media (images, audio), for settings. */
+    String mediaSummary();
+
+    /** Lets the player pick an AnkiDroid export to copy card media from. */
+    void importMedia();
+
+    void clearMedia(Runnable onDone);
+
     /** Drops any session state tied to the previous deck. */
     void deckChanged();
 }

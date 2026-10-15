@@ -8,4 +8,11 @@ dependencies {
     implementation project(':services')
 
     testImplementation 'junit:junit:4.13.2'
+    // to build zstd test packages like newer Anki exports
+    testImplementation 'com.github.luben:zstd-jni:1.5.6-9'
+}
+
+// file names in tests include Japanese; Android is always UTF-8, CI locales may not be
+test {
+    environment 'LC_ALL', 'C.UTF-8'
 }

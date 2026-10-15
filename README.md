@@ -33,6 +33,16 @@ returns to the question with the clock carrying on where it stopped, and on the
 question side it undoes the last bury/suspend. Buries and suspends are only sent
 to AnkiDroid once the card is graded, since AnkiDroid can't undo them.
 
+### Images and audio
+
+AnkiDroid doesn't let other apps read its media, so the game keeps its own copy.
+In AnkiDroid, export a deck (or the whole collection) with **Include media**
+ticked and share it to Cram Dungeon, or save the file and use **Settings >
+Flashcards > Card media > Import**. Exporting the same deck again later only adds
+new or changed files. Card audio plays when a side is shown (the answer side
+skips sounds already heard on the question) and the ▶ buttons replay it. If a
+card refers to files that haven't been imported, it says so under the card.
+
 A correct answer scores 1.0 when instant and drops to 0.5 at the time limit.
 Hard counts a little lower and Easy a little higher. A miss scores 0.
 
@@ -59,8 +69,9 @@ Every trigger can be turned off on its own in settings.
 ## Limitations
 
 - AnkiDroid only. Anki desktop and AnkiMobile have no API for other apps.
-- Card images and audio don't load: other apps can't read AnkiDroid's media
-  folder. Text, HTML, styling and furigana (`<ruby>`) work.
+- Card images and audio need a one-off export from AnkiDroid (see above); new
+  media needs another export. Text, HTML, styling and furigana (`<ruby>`) work
+  straight away. Text-to-speech fields (`{{tts:...}}`) don't play.
 - Enemy abilities that don't roll to hit (gas vents, summons, debuff fists) don't ask cards.
 - New text is English only.
 
@@ -83,8 +94,11 @@ Code map:
   pickup and search rules, settings tab and deck picker.
 - `core/src/main/java/.../items/potions/AnkiPotions.java`,
   `.../items/scrolls/AnkiScrolls.java`: the potion and scroll rules.
+- `core/src/main/java/com/cramdungeon/CardMedia.java`: reads media out of
+  `.apkg`/`.colpkg` exports into the game's media folder.
 - `android/src/main/java/com/cramdungeon/android/`: the AnkiDroid content
-  provider bridge and the WebView card overlay.
+  provider bridge, the WebView card overlay (which serves card media and plays
+  audio) and the media import screen.
 - `core/src/main/assets/anki/`: the card page and its chrome.
 - `tools/art/`: scripts that generate the launcher icon and title logo.
 

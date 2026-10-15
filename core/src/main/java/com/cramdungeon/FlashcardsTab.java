@@ -1,11 +1,13 @@
 package com.cramdungeon;
 
+import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.CheckBox;
 import com.shatteredpixel.shatteredpixeldungeon.ui.OptionSlider;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.ui.Component;
 
@@ -25,6 +27,7 @@ public class FlashcardsTab extends Component {
     private RedButton btnDeck;
     private OptionSlider optThink;
     private CheckBox chkSimple;
+    private RedButton btnMedia;
     private ColorBlock sep2;
     // set up in createChildren(): Component's constructor calls it before field
     // initializers run, so an initializer here would still be null at that point
@@ -88,6 +91,14 @@ public class FlashcardsTab extends Component {
         chkSimple.checked(AnkiPrefs.simpleGrading());
         add(chkSimple);
 
+        btnMedia = new RedButton("Card media") {
+            @Override
+            protected void onClick() {
+                showMediaOptions();
+            }
+        };
+        add(btnMedia);
+
         sep2 = new ColorBlock(1, 1, 0xFF000000);
         add(sep2);
 
@@ -120,13 +131,19 @@ public class FlashcardsTab extends Component {
         chkEnabled.setRect(0, sep1.y + 1 + GAP, width, BTN_HEIGHT);
         btnDeck.setRect(0, chkEnabled.bottom() + GAP, width, BTN_HEIGHT);
         optThink.setRect(0, btnDeck.bottom() + GAP, width, SLIDER_HEIGHT);
-        chkSimple.setRect(0, optThink.bottom() + GAP, width, BTN_HEIGHT);
-
-        sep2.size(width, 1);
-        sep2.y = chkSimple.bottom() + GAP;
-
         // two columns when the window is wide enough
         boolean wide = width > 200;
+        if (wide) {
+            chkSimple.setRect(0, optThink.bottom() + GAP, width / 2f - 1, BTN_HEIGHT);
+            btnMedia.setRect(width / 2f + 1, chkSimple.top(), width / 2f - 1, BTN_HEIGHT);
+        } else {
+            chkSimple.setRect(0, optThink.bottom() + GAP, width, BTN_HEIGHT);
+            btnMedia.setRect(0, chkSimple.bottom() + GAP, width, BTN_HEIGHT);
+        }
+
+        sep2.size(width, 1);
+        sep2.y = btnMedia.bottom() + GAP;
+
         float colWidth = wide ? width / 2f - 1 : width;
         float top = sep2.y + 1 + GAP;
         float bottom = top;
@@ -152,6 +169,42 @@ public class FlashcardsTab extends Component {
         if (chkEnabled.checked() != AnkiPrefs.enabled()) {
             chkEnabled.checked(AnkiPrefs.enabled());
         }
+    }
+
+    private static void showMediaOptions() {
+        AnkiPlatform platform = AnkiCheck.platform();
+        if (platform == null) {
+            return;
+        }
+        String message = platform.mediaSummary() + "\n\n"
+                + "AnkiDroid doesn't share images and audio with other apps, so the game keeps its own copy. "
+                + "In AnkiDroid, export a deck (or the whole collection) with _Include media_ ticked "
+                + "and share it to Cram Dungeon, or save it and import it here. "
+                + "Exporting again later adds the new files.";
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Card media", message,
+                "Import an export file", "Clear imported media") {
+            @Override
+            protected void onSelect(int index) {
+                if (index == 0) {
+                    platform.importMedia();
+                } else if (index == 1) {
+                    confirmClear(platform);
+                }
+            }
+        });
+    }
+
+    private static void confirmClear(AnkiPlatform platform) {
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Clear card media?",
+                platform.mediaSummary() + " Cards will show them as missing until you import again.",
+                "Clear", "Keep") {
+            @Override
+            protected void onSelect(int index) {
+                if (index == 0) {
+                    platform.clearMedia(() -> { });
+                }
+            }
+        });
     }
 
     private static String deckLabel() {

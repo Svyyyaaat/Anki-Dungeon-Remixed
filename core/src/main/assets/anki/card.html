@@ -6,7 +6,7 @@
 <style>
 @font-face {
     font-family: "GamePixel";
-    src: url("file:///android_asset/fonts/pixel_font.ttf");
+    src: url("_cram/fonts/pixel_font.ttf");
 }
 
 :root {
@@ -50,7 +50,7 @@ html, body {
     flex-direction: column;
     border-style: solid;
     border-width: 18px;
-    border-image: url("frame.png") 6 fill / 18px stretch;
+    border-image: url("_cram/frame.png") 6 fill / 18px stretch;
     image-rendering: pixelated;
     font-family: "GamePixel", monospace;
 }
@@ -135,7 +135,7 @@ html, body {
     background: none;
     border-style: solid;
     border-width: 6px;
-    border-image: url("button.png") 2 fill / 6px stretch;
+    border-image: url("_cram/button.png") 2 fill / 6px stretch;
     image-rendering: pixelated;
     text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
     transition: opacity 0.15s;
@@ -145,7 +145,7 @@ html, body {
 .btn.grey {
     min-height: 36px;
     font-size: 15px;
-    border-image: url("button_grey.png") 2 fill / 6px stretch;
+    border-image: url("_cram/button_grey.png") 2 fill / 6px stretch;
 }
 
 .btn:active {
@@ -181,6 +181,35 @@ html, body {
     color: var(--muted);
     font-size: 12px;
 }
+
+/* [sound:...] from the card: tap to replay */
+button.snd {
+    display: inline-block;
+    min-width: 36px;
+    min-height: 30px;
+    margin: 2px 4px;
+    padding: 0 6px;
+    color: var(--ink);
+    font-size: 14px;
+    background: none;
+    border-style: solid;
+    border-width: 6px;
+    border-image: url("_cram/button_grey.png") 2 fill / 6px stretch;
+    image-rendering: pixelated;
+    vertical-align: middle;
+}
+
+button.snd:active {
+    filter: brightness(1.3);
+}
+
+#media-note {
+    display: none;
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+}
 </style>
 <style>
 %%CSS%%
@@ -210,6 +239,7 @@ html, body {
             <div id="answer" class="card">%%ANSWER%%</div>
         </div>
         <div id="note"></div>
+        <div id="media-note"></div>
         <div id="foot">
             <div id="buttons"></div>
             <div id="honesty">Thou shalt answer honestly &mdash; or else just play the normal game.</div>
@@ -318,6 +348,25 @@ function questionButtons() {
     setButtons([button("Show answer", null, reveal)]);
 }
 
+/* card audio: names of the [sound:] files inside an element, in order */
+function soundsIn(id) {
+    return Array.prototype.map.call(el(id).querySelectorAll("button.snd"), function (b) {
+        return b.getAttribute("data-snd");
+    });
+}
+
+function play(names) {
+    if (names.length) {
+        AnkiBridge.play(JSON.stringify(names));
+    }
+}
+
+/* the answer usually repeats the question ({{FrontSide}}); autoplay only what's new */
+function answerOnlySounds() {
+    var asked = soundsIn("question");
+    return soundsIn("answer").filter(function (n) { return asked.indexOf(n) < 0; });
+}
+
 function grade(ease) {
     setButtons([]);
     AnkiBridge.grade(ease);
@@ -340,11 +389,13 @@ function reveal() {
     AnkiBridge.reveal();
     showAnswerSide();
     gradeButtons();
+    play(answerOnlySounds());
 }
 
 /* called by the game after Back on the answer side; the clock resumes where it stopped */
 function showQuestion(elapsedMs) {
     revealed = false;
+    AnkiBridge.stopAudio();
     el("answer").style.display = "none";
     el("question").style.display = "block";
     el("content").scrollTop = 0;
@@ -365,6 +416,7 @@ function timeUp() {
     var title = el("title");
     title.className = "bad";
     title.textContent = "Time's up!";
+    play(answerOnlySounds());
     setButtons([button("Continue", "counts as Again", function () { grade(1); })]);
 }
 
@@ -392,8 +444,22 @@ function busy() {
         img.addEventListener("error", function () {
             var span = document.createElement("span");
             span.className = "missing-media";
-            span.textContent = "[image]";
+            span.textContent = "[image missing]";
             img.replaceWith(span);
+        });
+    });
+
+    if (CONFIG.missingMedia > 0) {
+        var mn = el("media-note");
+        mn.textContent = (CONFIG.missingMedia === 1 ? "1 media file is" : CONFIG.missingMedia + " media files are")
+            + " missing. In AnkiDroid: Export, Include media, Share to Cram Dungeon.";
+        mn.style.display = "block";
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll("button.snd"), function (b) {
+        b.addEventListener("click", function (e) {
+            e.stopPropagation();
+            play([b.getAttribute("data-snd")]);
         });
     });
 
@@ -429,6 +495,7 @@ function busy() {
     questionButtons();
     updateTools();
     lock();
+    play(soundsIn("question"));
 })();
 </script>
 </body>

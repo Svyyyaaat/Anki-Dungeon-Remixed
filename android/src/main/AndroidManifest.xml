@@ -46,6 +46,32 @@
 				<category android:name="android.intent.category.LAUNCHER" />
 			</intent-filter>
 		</activity>
+		<!-- card media: AnkiDroid deck exports shared to the game, or picked from storage -->
+		<activity
+			android:name="com.cramdungeon.android.MediaImportActivity"
+			android:label="${appName}"
+			android:theme="@android:style/Theme.Material.Dialog.NoActionBar"
+			android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize"
+			android:excludeFromRecents="true"
+			android:exported="true">
+			<intent-filter android:label="Import card media">
+				<action android:name="android.intent.action.SEND" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<data android:mimeType="application/apkg" />
+				<data android:mimeType="application/x-apkg" />
+				<data android:mimeType="application/colpkg" />
+				<data android:mimeType="application/x-colpkg" />
+			</intent-filter>
+			<intent-filter android:label="Import card media">
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<data android:scheme="content" />
+				<data android:mimeType="application/apkg" />
+				<data android:mimeType="application/x-apkg" />
+				<data android:mimeType="application/colpkg" />
+				<data android:mimeType="application/x-colpkg" />
+			</intent-filter>
+		</activity>
 		<activity
 			android:name=".AndroidMissingNativesHandler">
 		</activity>
