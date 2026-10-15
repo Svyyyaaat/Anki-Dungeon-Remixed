@@ -45,7 +45,12 @@ FRAME = {
     'green': [(105, 187, 119), (48, 147, 65), (19, 108, 19)],
     'deepgreen': [(27, 156, 27), (14, 79, 14), (10, 61, 10)],
     'brightgreen': [(105, 187, 119), (27, 156, 27), (14, 79, 14)],
+    # the title logo's carved stone (SHATTERED's letters)
+    'stone': [(212, 219, 200), (132, 142, 111), (70, 78, 53)],
 }
+# rune card (title logo): dark carved face, stone あ burning rune green
+DARK_FACE_HI, DARK_FACE, DARK_FACE_LO = (18, 20, 12), (36, 40, 27), (28, 31, 20)
+RUNE, RUNE_HI, RUNE_DIM = (48, 147, 65), (105, 187, 119), (26, 70, 32)
 FACE_HI, FACE, FACE_LO = (255, 248, 215), (255, 244, 208), (217, 201, 161)
 INK = {'red': (179, 0, 30), 'black': (41, 30, 0)}
 # background stone (original SPD ic_launcher_background colours)
@@ -118,12 +123,13 @@ def card_layer(st):
         fx, fy = i - x, j - y
         inner = FRAME_W <= fx < w - FRAME_W and FRAME_W <= fy < h - FRAME_W
         if inner:
+            dark = st.get('face') == 'dark'
             if fx == FRAME_W or fy == FRAME_W:
-                c = FACE_HI
+                c = DARK_FACE_HI if dark else FACE_HI
             elif fx == w - FRAME_W - 1:
-                c = FACE_LO
+                c = DARK_FACE_LO if dark else FACE_LO
             else:
-                c = FACE
+                c = DARK_FACE if dark else FACE
         else:
             ring = min(fx, fy, w - 1 - fx, h - 1 - fy)
             if st.get('trim') and ring == FRAME_W - 1:
@@ -139,11 +145,27 @@ def card_layer(st):
     for (i, j) in [(x + FRAME_W, y + FRAME_W), (x + w - FRAME_W - 1, y + FRAME_W)]:
         lay[(i, j)] = (G_MID if st.get('trim') else fr[1])
     gx, gy = GLYPH_POS
-    ink = INK[st['ink']]
-    for j, row in enumerate(GLYPH):
-        for i, ch in enumerate(row):
-            if ch == '#':
-                lay[(gx + i, gy + j)] = ink
+    glyph = {(gx + i, gy + j) for j, row in enumerate(GLYPH) for i, ch in enumerate(row) if ch == '#'}
+    if st['ink'] == 'rune':
+        # no glow layer on an icon: the burn is painted in. Green strokes with
+        # a bright line along their lit edge and a dim green halo on the face.
+        face = {p for p, c in lay.items() if c in (DARK_FACE, DARK_FACE_HI, DARK_FACE_LO)}
+        if st.get('halo'):
+            # faint glow only where it doesn't crowd the strokes: pixels touching
+            # the glyph diagonally, never between two strokes
+            for (i, j) in glyph:
+                for di, dj in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
+                    q = (i + di, j + dj)
+                    if q in face and q not in glyph and not any(
+                            (q[0] + a, q[1] + b) in glyph for a, b in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                        lay[q] = RUNE_DIM
+        for (i, j) in glyph:
+            # bright burning strokes, darker green on their lower/right edges
+            shaded = (i, j + 1) not in glyph and (i - 1, j + 1) not in glyph
+            lay[(i, j)] = RUNE if shaded else RUNE_HI
+    else:
+        for p in glyph:
+            lay[p] = INK[st['ink']]
     return lay
 
 

@@ -55,7 +55,35 @@ def width(letter):
     return max(x for x, _ in letter) + 1
 
 
-M_CUT = 55
+M_CUT = 54   # half of DUNGEON's N up to here; M ends up 22px wide
+
+
+OUTLINE = (35, 40, 25)
+
+
+def round_c(c):
+    """The G's lower arm runs flat towards its bar; rebuild it as a mirror of the
+    C's upper hook (lit top surface, dark bottom outline) so both ends curl."""
+    c = dict(c)
+    h = 18
+    top = {(x, y) for (x, y) in c if y <= 4 and x >= 6}
+    for (x, y) in list(c):
+        if y >= 13 and x >= 6:
+            del c[(x, y)]
+    none = (0, 0, 0, 0)
+    mirrored = {(x, h - 1 - y) for (x, y) in top}
+    for (x, y) in mirrored:
+        col = sorted(yy for (xx, yy) in mirrored if xx == x)
+        right = max(xx for (xx, yy) in mirrored if yy == y)
+        if y == col[-1]:
+            c[(x, y)] = (OUTLINE + (255,), none)
+        elif y == col[0]:
+            c[(x, y)] = ((212, 219, 200, 255), none)
+        elif x == right:
+            c[(x, y)] = ((70, 78, 53, 255), none)
+        else:
+            c[(x, y)] = ((101, 110, 83, 255), none)
+    return c
 
 
 def letters(port, pglow):
@@ -80,7 +108,7 @@ def letters(port, pglow):
             c[(x - 63, 77 - 63)] = (port.getpixel((x, 71)), (0, 0, 0, 0))
     if (72 - 63, 77 - 63) in c:
         c[(72 - 63, 77 - 63)] = (port.getpixel((72, 71)), (0, 0, 0, 0))
-    L['C'] = c
+    L['C'] = round_c(c)
     # 'M' = left half of DUNGEON's small 'N' (left stem + the top of its
     # diagonal) plus its mirror image.  These letters are lit from the top
     # (light top edge, dark bottom) with equally dark left/right edges, so a
@@ -95,20 +123,16 @@ def letters(port, pglow):
 
 
 # Letter spacing for CRAM, as the gap between neighbouring letters' boxes.
-# Measured on SPD's DUNGEON: neighbouring straight stems sit 1px apart
-# (closest point 0-1px, row-average ~2px), and the open-sided G keeps its
-# arms 1-2px from the E.  So:
-#   C-R  1: the C's arms end 2px (top) / 1px (bottom) from the R stem, exactly
-#        the G-E relationship; any tighter and the arms fuse with the R
-#   R-A  2: R's kicked leg and A's foot would otherwise nearly touch at the
-#        baseline, which is what made R/A/M look crowded; 2px at the feet
-#   A-M  1: A's right foot ends 2px from M's stem
+# SPD's own words have no background between letters, and the narrow-topped
+# A leaves wedges either side, so R and M tuck over its feet (R over A over M,
+# like the T over the A in SHATTERED). The C keeps 2px off the R.
 WORD = ['C', 'R', 'A', 'M']
-KERN = {('C', 'R'): 1, ('R', 'A'): 2, ('A', 'M'): 1}
+KERN = {('C', 'R'): 2, ('R', 'A'): -3, ('A', 'M'): -3}
+DRAW_ORDER = ['M', 'A', 'R', 'C']
 
 
 def word_layout(L, x0, x1):
-    """[(letter, x)] for CRAM, optically spaced and centred on x0..x1."""
+    """[(letter, x)] for CRAM centred on x0..x1, in drawing order."""
     xs, x = [], 0
     for i, c in enumerate(WORD):
         xs.append(x)
@@ -117,7 +141,8 @@ def word_layout(L, x0, x1):
     lo = min(xs[i] + min(p[0] for p in L[c]) for i, c in enumerate(WORD))
     hi = max(xs[i] + max(p[0] for p in L[c]) for i, c in enumerate(WORD))
     shift = (x0 + x1 - (lo + hi) + 1) // 2
-    return [(c, xx + shift) for c, xx in zip(WORD, xs)]
+    pos = {c: xx + shift for c, xx in zip(WORD, xs)}
+    return [(c, pos[c]) for c in DRAW_ORDER]
 
 
 def shadow(mask_alpha):
@@ -171,15 +196,19 @@ FR_HI = (101, 110, 83)
 FR_TOP, FR_BOT = (108, 118, 90), (132, 142, 111)
 FR_EDGE = (70, 78, 53)
 MOSS = (111, 162, 104)
-FACE_TOP, FACE_BOT = (255, 244, 208), (217, 201, 161)
-FACE_RIM = (157, 136, 97)       # inner bevel: shadowed top/left of the recessed face
-FACE_LIP = (255, 248, 215)      # lit bottom edge of the recess
-INK = (41, 30, 0)               # same near-black ink as the launcher icon
-# glow layer: the "signs" layer is drawn ADDITIVELY with an animated alpha.
-# The あ smoulders like an ember: near-black ink + core -> deep orange-red at
-# the peak; the faint halo only warms the cream face and the red frame.
-GLOW_CORE = (200, 60, 15, 255)
-GLOW_HALO = (120, 20, 0, 60)
+# dark recessed face, like a slot carved into the stone
+FACE_TOP, FACE_BOT = (40, 44, 30), (28, 31, 20)
+FACE_RIM = (18, 20, 12)         # inner bevel: shadowed top/left of the recess
+FACE_LIP = (70, 78, 53)         # lit bottom edge of the recess
+# the あ is carved in the letters' stone and burns with their rune green
+INK = (132, 142, 111)
+INK_LIT = (158, 166, 142)       # top/left edges of the strokes
+# glow layer: drawn ADDITIVELY with an animated alpha, like the letters' runes
+# (same greens), but the whole glyph burns: green strokes, bright centre
+# lines and a wider halo than the letters get
+RUNE = (48, 147, 65)
+RUNE_HI = (105, 187, 119)
+GLOW_HALO_A = 90
 
 # bold 12x13 あ (same design as the launcher icon card), drawn at 2x for the
 # big landscape card so it reads like a card-suit symbol
@@ -264,26 +293,56 @@ def card_emblem(spec=CARD):
             px[(x, y)] = c
     gx, gy = spec['off']
     glyph = {(gx + x, gy + y) for y, row in enumerate(spec['glyph']) for x, ch in enumerate(row) if ch == '#'}
-    for (x, y) in glyph:
-        px[(x, y)] = INK
+    centre = {p for p in glyph
+              if all((p[0] + dx, p[1] + dy) in glyph for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))} or glyph
+    for p in glyph:
+        lit_edge = not all((p[0] + dx, p[1] + dy) in glyph for dx, dy in ((0, -1), (-1, 0)))
+        px[p] = INK_LIT if lit_edge else INK
     glow = {}
     for (x, y) in glyph:
         for dx in (-1, 0, 1):
             for dy in (-1, 0, 1):
-                p = (x + dx, y + dy)
-                if p not in glyph:
-                    glow[p] = GLOW_HALO
+                q = (x + dx, y + dy)
+                if q not in glyph:
+                    glow[q] = RUNE + (GLOW_HALO_A,)
     for p in glyph:
-        glow[p] = GLOW_CORE
+        glow[p] = (RUNE_HI if p in centre else RUNE) + (255,)
     return px, glow
 
 
-def stamp(new, nglow, x0, y0, spec=CARD):
+def stamp(new, nglow, x0, y0, spec=CARD, shade=('bottom', 9)):
+    """Draw the card behind whatever is already drawn; {shade} darkens the side
+    that goes behind the title. Returns the card's pixel positions."""
     px, gl = card_emblem(spec)
+    side, n = shade
+    covered = set()
     for (x, y), c in px.items():
-        new.putpixel((x0 + x, y0 + y), c + (255,))
+        q = (x0 + x, y0 + y)
+        if new.getpixel(q)[3] == 255:
+            continue
+        d = (y - (spec['h'] - n)) if side == 'bottom' else (x - (spec['w'] - n))
+        k = 1.0 if d < 0 else 1.0 - 0.55 * (d + 1) / n
+        new.putpixel(q, tuple(int(v * k) for v in c) + (255,))
+        covered.add(q)
     for (x, y), c in gl.items():
-        nglow.putpixel((x0 + x, y0 + y), c)
+        if (x0 + x, y0 + y) in covered or (x0 + x, y0 + y) not in {(x0 + a, y0 + b) for (a, b) in px}:
+            nglow.putpixel((x0 + x, y0 + y), c)
+    return covered
+
+
+def cast_shadow(new, occ, onto):
+    """Pixels in {occ} (letters over the card) cast a hard 1px shadow
+    down-right onto the card pixels {onto}."""
+    for (x, y) in occ:
+        for dx, dy in ((1, 1), (0, 1), (1, 0)):
+            q = (x + dx, y + dy)
+            if q not in occ and q in onto:
+                p = new.getpixel(q)
+                new.putpixel(q, tuple(int(v * 0.45) for v in p[:3]) + (255,))
+
+
+def letter_pixels(L, word, y0):
+    return {(x + lx, y0 + ly) for c, x in word for (lx, ly) in L[c]}
 
 
 # ------------------------------------------------------------------ build
@@ -297,11 +356,13 @@ def build_port(src):
     new = Image.new('RGBA', (W, H), (0, 0, 0, 0))
     nglow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
 
-    # emblem first, so CRAM overlaps its lower edge and the card sits behind the title
-    stamp(new, nglow, (W - CARD['w']) // 2, LAYOUT['card_y'])
+    # card first, so CRAM overlaps its lower edge and it sits behind the title
+    card = stamp(new, nglow, (W - CARD['w']) // 2, LAYOUT['card_y'])
 
     # CRAM centred over DUNGEON (opaque extent x 3..135)
-    for c, x in word_layout(L, 3, 135):
+    word = word_layout(L, 3, 135)
+    cast_shadow(new, letter_pixels(L, word, LAYOUT['word_y']), card)
+    for c, x in word:
         place(new, nglow, L[c], x, LAYOUT['word_y'])
     # keep the original floating rubble in the top corners
     for yy in range(0, 11):
@@ -331,7 +392,8 @@ def build_port(src):
     return out, glow
 
 
-LAYOUT = dict(word_y=39, card_y=1)
+# card_y: the card's bottom 6 rows go behind CRAM
+LAYOUT = dict(word_y=39, card_y=11)
 
 
 def build_land(src):
@@ -363,8 +425,12 @@ def build_land(src):
     # line 1: CRAM centred over DUNGEON
     dun_x0, dun_x1 = 3 + dx, 135 + dx       # DUNGEON's opaque extent (portrait x 3..135)
     # the card stands to the left of both lines; drawn first so the words overlap it
-    stamp(new, nglow, dun_x0 - LAYOUT_L['card_gap'] - CARD_L['w'], LAYOUT_L['card_y'], CARD_L)
-    for c, x in word_layout(L, dun_x0, dun_x1):
+    dungeon = {(x, y) for y in range(H) for x in range(W) if new.getpixel((x, y))[3] == 255}
+    card = stamp(new, nglow, dun_x0 - LAYOUT_L['card_gap'] - CARD_L['w'], LAYOUT_L['card_y'], CARD_L,
+                 shade=('right', 8))
+    word = word_layout(L, dun_x0, dun_x1)
+    cast_shadow(new, dungeon | letter_pixels(L, word, LAYOUT_L['word_y']), card)
+    for c, x in word:
         place(new, nglow, L[c], x, LAYOUT_L['word_y'])
 
     # rubble: bring the portrait's bottom-corner pebbles along with DUNGEON
@@ -382,7 +448,8 @@ def build_land(src):
     return out, nglow
 
 
-LAYOUT_L = dict(word_y=2, card_y=2, card_gap=3)
+# card_gap < 0: the card tucks behind the start of both lines
+LAYOUT_L = dict(word_y=2, card_y=2, card_gap=-4)
 
 
 def build(src):
