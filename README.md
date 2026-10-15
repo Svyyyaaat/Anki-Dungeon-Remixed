@@ -54,7 +54,7 @@ Hard counts a little lower and Easy a little higher. A miss scores 0.
 |---|---|
 | Your attack (melee, thrown weapons, spirit bow, wand bolts) | Accuracy x0.5-1.5, damage x0.75-1.25 |
 | An enemy's attack on you (melee, spells such as warlock and shaman bolts, the evil eye's beam) | Evasion x0.5-1.5, damage taken x1.25-0.75 |
-| Momentum | Correct answers in a row (scoring 0.6+) bank up to 3 free exchanges played at that score. A miss, or 10 turns without a fight, resets it |
+| Momentum | Correct answers in a row (scoring 0.6+) bank free exchanges played at that score: none for the first, then half the cap, then one more per answer. The cap is 3 in the sewers and grows by one per chapter, to 7 in the demon halls. A miss, or 10 turns without a fight, resets it |
 | Drinking an unknown potion | Pass: it acts as a helpful potion. Miss: as a harmful one. If it already is that kind it works as itself; otherwise a random potion of that kind takes effect and yours stays unidentified |
 | Throwing an unknown potion | The reverse: pass makes it harmful (for whatever it hits) |
 | Potion of Strength (or Mastery) | Never comes out of a stand-in. A miss identifies it and it slips from your hands, gone |
