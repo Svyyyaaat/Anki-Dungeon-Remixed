@@ -41,13 +41,17 @@ FRAME = {
     'red': [(236, 34, 8), (179, 0, 30), (128, 30, 10)],
     'blue': [(68, 124, 230), (55, 72, 182), (31, 40, 110)],
     'purple': [(152, 26, 171), (125, 22, 217), (65, 17, 144)],
+    # greens: logo glow/moss tint (105,187,119)/(48,147,65) and SPD chest greens
+    'green': [(105, 187, 119), (48, 147, 65), (19, 108, 19)],
+    'deepgreen': [(27, 156, 27), (14, 79, 14), (10, 61, 10)],
+    'brightgreen': [(105, 187, 119), (27, 156, 27), (14, 79, 14)],
 }
 FACE_HI, FACE, FACE_LO = (255, 248, 215), (255, 244, 208), (217, 201, 161)
 INK = {'red': (179, 0, 30), 'black': (41, 30, 0)}
 # background stone (original SPD ic_launcher_background colours)
 BG = [(53, 52, 49), (59, 58, 54), (70, 69, 65), (76, 75, 71), (79, 78, 74), (83, 82, 78)]
 
-STYLE = dict(wood='green', frame='red', ink='black')
+STYLE = dict(wood='green', frame='brightgreen', ink='black', trim=False)
 
 # ---------------------------------------------------------------- glyph
 # hand-pixelled bold hiragana A, 2px strokes (12x13). Designed on the grid,
@@ -121,7 +125,11 @@ def card_layer(st):
             else:
                 c = FACE
         else:
-            if fy == 0 or fx == 0:
+            ring = min(fx, fy, w - 1 - fx, h - 1 - fy)
+            if st.get('trim') and ring == FRAME_W - 1:
+                # 1px gold trim between the frame and the face
+                c = G_HI if (fx == ring or fy == ring) else G_MID
+            elif fy == 0 or fx == 0:
                 c = fr[0]
             elif fx == w - 1 or fy == h - 1:
                 c = fr[2]
@@ -129,7 +137,7 @@ def card_layer(st):
                 c = fr[1]
         lay[(i, j)] = c
     for (i, j) in [(x + FRAME_W, y + FRAME_W), (x + w - FRAME_W - 1, y + FRAME_W)]:
-        lay[(i, j)] = fr[1]
+        lay[(i, j)] = (G_MID if st.get('trim') else fr[1])
     gx, gy = GLYPH_POS
     ink = INK[st['ink']]
     for j, row in enumerate(GLYPH):
@@ -378,7 +386,12 @@ def up(img, k):
 
 
 def write_repo(root):
-    res = os.path.join(root, 'android', 'src', 'main', 'res')
+    # release (main) and debug builds ship their own copies of the icon set
+    for flavour in ('main', 'debug'):
+        write_res(os.path.join(root, 'android', 'src', flavour, 'res'))
+
+
+def write_res(res):
     fg, bg, mono = adaptive_fg(), adaptive_bg(), monochrome()
     for d, k in DENS.items():
         p = os.path.join(res, 'mipmap-' + d)
@@ -451,7 +464,7 @@ def actual_sheet(st=None):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--out')
+    ap.add_argument('--out', help='repo root to write the PNGs into')
     ap.add_argument('--preview')
     ap.add_argument('--tag', default='icon')
     a = ap.parse_args()

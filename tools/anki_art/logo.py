@@ -54,32 +54,58 @@ def width(letter):
     return max(x for x, _ in letter) + 1
 
 
+def weld(letter, col, src_col, rows, fill_cols=()):
+    """Turn a stem's dark inner edge into its interior colour on the given
+    rows, so an arm can join it without a seam (keeps the glow pixel)."""
+    for y in rows:
+        if (col, y) in letter and (src_col, y) in letter:
+            letter[(col, y)] = (letter[(src_col, y)][0], letter[(col, y)][1])
+            for x in fill_cols:
+                if (x, y) not in letter or True:
+                    letter[(x, y)] = (letter[(src_col, y)][0], letter.get((x, y), (None, (0, 0, 0, 0)))[1])
+
+
 def letters(port, pglow):
-    """Cut the source letters out of the original portrait logo."""
+    """Cut the source letters out of the original portrait logo.
+
+    All four come from SPD's own lettering (18 opaque rows each):
+      A  'A' of SHATTERED
+      R  'R' of SHATTERED
+      C  small 'G' of DUNGEON with its bar/spur removed and the lower
+         terminal re-capped with the bar's own top-edge highlight pixels
+      M  two PIXEL 'I' stems with the upper (V) half of PIXEL's 'X' between
+         them; the stems' inner edges are welded to the arms and the V's cut
+         bottom gets the letters' dark bottom-edge colour
+    """
     L = {}
     # 'A' of SHATTERED: rows 15-32, x 32-51; the T's bar starts at x48 on top rows
     L['A'] = opaque_cut(port, pglow, 32, 15, 51, 32, lambda x, y: y >= 22 or x <= 47)
-    # small 'N' of DUNGEON: x 44-62, rows 63-80 (U's right stem ends at x43)
-    L['N'] = opaque_cut(port, pglow, 44, 63, 62, 80)
-    # 'I' of PIXEL: x 50-57 rows 39-56
-    L['I'] = opaque_cut(port, pglow, 50, 39, 57, 56)
-    # 'K' = I stem + right half of X (x >= 67, rows 39-56; E starts at x78/79)
-    k = dict(L['I'])
-    xr = opaque_cut(port, pglow, 67, 39, 77, 56)
-    off = 10  # X half starts right after the stem (stem body ends at dx 6)
-    for (x, y), v in xr.items():
-        k[(x + off, y)] = v
-    # weld: where the arms meet the stem, turn the stem's dark right edge
-    # (dx 6) into the stem's interior colour (dx 4) on those rows
-    for y in range(18):
-        if (off, y) in k and (6, y) in k:
-            k[(6, y)] = (k[(4, y)][0], k[(6, y)][1])
-            if (7, y) not in k:
-                k[(7, y)] = (k[(4, y)][0], (0, 0, 0, 0))
-            for x in range(7, off):
-                if (x, y) not in k:
-                    k[(x, y)] = (k[(4, y)][0], (0, 0, 0, 0))
-    L['K'] = k
+    # 'R' of SHATTERED: x 92-106 rows 15-32 (T ends at x91, E starts at x107)
+    L['R'] = opaque_cut(port, pglow, 92, 15, 106, 32)
+    # 'C' from DUNGEON's small 'G' (x 63-79, rows 63-80): drop the bar
+    c = opaque_cut(port, pglow, 63, 63, 79, 80, lambda x, y: not (x >= 72 and 70 <= y <= 76))
+    for x in range(73, 79):
+        if (x - 63, 77 - 63) in c:
+            c[(x - 63, 77 - 63)] = (port.getpixel((x, 71)), (0, 0, 0, 0))
+    if (72 - 63, 77 - 63) in c:
+        c[(72 - 63, 77 - 63)] = (port.getpixel((72, 71)), (0, 0, 0, 0))
+    L['C'] = c
+    # 'M' = I stem + upper half of X (V) + I stem
+    m = {}
+    for (x, y), v in opaque_cut(port, pglow, 58, 39, 77, 47).items():
+        m[(x, y)] = v
+    for (x, y), v in opaque_cut(port, pglow, 50, 39, 57, 56).items():
+        m[(x, y)] = v                # left stem at dx 0..7
+        m[(x + 11, y)] = v           # right stem at dx 11..18
+    rows_l = [y for y in range(18) if (8, y) in m or (7, y) in m and y not in (0, 1, 16, 17)]
+    rows_r = [y for y in range(18) if (10, y) in m or (11, y) in m and y not in (0, 1, 16, 17)]
+    weld(m, 6, 4, [y for y in range(2, 16) if (8, y) in m], fill_cols=(7,))
+    weld(m, 12, 14, [y for y in range(2, 16) if (10, y) in m], fill_cols=(11,))
+    BOTTOM_EDGE = (15, 18, 8, 255)
+    for x in range(7, 12):
+        if (x, 8) in m and x not in (0,):
+            m[(x, 8)] = (BOTTOM_EDGE, m[(x, 8)][1])
+    L['M'] = m
     return L
 
 
@@ -253,7 +279,7 @@ def build_port(src):
     nglow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
 
     gap = 1
-    word = ['A', 'N', 'K', 'I']
+    word = ['C', 'R', 'A', 'M']
     total = sum(width(L[c]) for c in word) + gap * (len(word) - 1)
     x = (W - total) // 2
     y = LAYOUT['anki_y']
@@ -322,7 +348,7 @@ def build_land(src):
 
     # line 1: ANKI centred over DUNGEON
     gap = 1
-    word = ['A', 'N', 'K', 'I']
+    word = ['C', 'R', 'A', 'M']
     total = sum(width(L[c]) for c in word) + gap * (len(word) - 1)
     dun_x0, dun_x1 = 3 + dx, 135 + dx       # DUNGEON's opaque extent (portrait x 3..135)
     x = (dun_x0 + dun_x1 + 1 - total) // 2
