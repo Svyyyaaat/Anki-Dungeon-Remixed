@@ -348,23 +348,28 @@ function questionButtons() {
     setButtons([button("Show answer", null, reveal)]);
 }
 
-/* card audio: names of the [sound:] files inside an element, in order */
-function soundsIn(id) {
-    return Array.prototype.map.call(el(id).querySelectorAll("button.snd"), function (b) {
-        return b.getAttribute("data-snd");
-    });
+/* card audio inside an element, in order: {f: file} for [sound:], {t, l, r} for TTS */
+function clip(b) {
+    if (b.hasAttribute("data-snd")) {
+        return {f: b.getAttribute("data-snd")};
+    }
+    return {t: b.getAttribute("data-tts"), l: b.getAttribute("data-lang"), r: parseFloat(b.getAttribute("data-rate")) || 1};
 }
 
-function play(names) {
-    if (names.length) {
-        AnkiBridge.play(JSON.stringify(names));
+function soundsIn(id) {
+    return Array.prototype.map.call(el(id).querySelectorAll("button.snd"), clip);
+}
+
+function play(clips) {
+    if (clips.length) {
+        AnkiBridge.play(JSON.stringify(clips));
     }
 }
 
 /* the answer usually repeats the question ({{FrontSide}}); autoplay only what's new */
 function answerOnlySounds() {
-    var asked = soundsIn("question");
-    return soundsIn("answer").filter(function (n) { return asked.indexOf(n) < 0; });
+    var asked = soundsIn("question").map(function (c) { return JSON.stringify(c); });
+    return soundsIn("answer").filter(function (c) { return asked.indexOf(JSON.stringify(c)) < 0; });
 }
 
 function grade(ease) {
@@ -459,7 +464,7 @@ function busy() {
     Array.prototype.forEach.call(document.querySelectorAll("button.snd"), function (b) {
         b.addEventListener("click", function (e) {
             e.stopPropagation();
-            play([b.getAttribute("data-snd")]);
+            play([clip(b)]);
         });
     });
 

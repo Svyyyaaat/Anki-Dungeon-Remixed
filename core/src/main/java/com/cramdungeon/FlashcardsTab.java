@@ -27,6 +27,7 @@ public class FlashcardsTab extends Component {
     private RedButton btnDeck;
     private OptionSlider optThink;
     private CheckBox chkSimple;
+    private CheckBox chkTts;
     private RedButton btnMedia;
     private ColorBlock sep2;
     // set up in createChildren(): Component's constructor calls it before field
@@ -91,6 +92,16 @@ public class FlashcardsTab extends Component {
         chkSimple.checked(AnkiPrefs.simpleGrading());
         add(chkSimple);
 
+        chkTts = new CheckBox("Read TTS fields") {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                AnkiPrefs.tts(checked());
+            }
+        };
+        chkTts.checked(AnkiPrefs.tts());
+        add(chkTts);
+
         btnMedia = new RedButton("Card media") {
             @Override
             protected void onClick() {
@@ -135,11 +146,12 @@ public class FlashcardsTab extends Component {
         boolean wide = width > 200;
         if (wide) {
             chkSimple.setRect(0, optThink.bottom() + GAP, width / 2f - 1, BTN_HEIGHT);
-            btnMedia.setRect(width / 2f + 1, chkSimple.top(), width / 2f - 1, BTN_HEIGHT);
+            chkTts.setRect(width / 2f + 1, chkSimple.top(), width / 2f - 1, BTN_HEIGHT);
         } else {
             chkSimple.setRect(0, optThink.bottom() + GAP, width, BTN_HEIGHT);
-            btnMedia.setRect(0, chkSimple.bottom() + GAP, width, BTN_HEIGHT);
+            chkTts.setRect(0, chkSimple.bottom() + GAP, width, BTN_HEIGHT);
         }
+        btnMedia.setRect(0, chkTts.bottom() + GAP, width, BTN_HEIGHT);
 
         sep2.size(width, 1);
         sep2.y = btnMedia.bottom() + GAP;

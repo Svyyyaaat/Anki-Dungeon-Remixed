@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.windows;
 
+import com.cramdungeon.AnkiPrefs;
 import com.cramdungeon.FlashcardsTab;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Chrome;
@@ -902,6 +903,8 @@ public class WndSettings extends WndTabbed {
 		ColorBlock sep2;
 		OptionSlider optSFX;
 		CheckBox chkMuteSFX;
+		ColorBlock sepCard;
+		OptionSlider optCard;
 		ColorBlock sep3;
 		CheckBox chkIgnoreSilent;
 		CheckBox chkMusicBG;
@@ -967,6 +970,19 @@ public class WndSettings extends WndTabbed {
 			chkMuteSFX.checked(!SPDSettings.soundFx());
 			add( chkMuteSFX );
 
+			//Cram Dungeon: audio on flashcards, set apart from the game's sound
+			sepCard = new ColorBlock(1, 1, 0xFF000000);
+			add(sepCard);
+
+			optCard = new OptionSlider("Flashcard audio volume", "0", "10", 0, 10) {
+				@Override
+				protected void onChange() {
+					AnkiPrefs.cardVolume(getSelectedValue());
+				}
+			};
+			optCard.setSelectedValue(AnkiPrefs.cardVolume());
+			add(optCard);
+
 			if (DeviceCompat.isiOS()){
 
 				sep3 = new ColorBlock(1, 1, 0xFF000000);
@@ -1026,17 +1042,21 @@ public class WndSettings extends WndTabbed {
 				chkMuteSFX.setRect(0, optSFX.bottom() + GAP, width, BTN_HEIGHT);
 			}
 
-			height = chkMuteSFX.bottom();
+			sepCard.size(width, 1);
+			sepCard.y = chkMuteSFX.bottom() + GAP;
+			optCard.setRect(0, sepCard.y + 1 + GAP, width, SLIDER_HEIGHT);
+
+			height = optCard.bottom();
 
 			if (chkIgnoreSilent != null){
 				sep3.size(width, 1);
-				sep3.y = chkMuteSFX.bottom() + GAP;
+				sep3.y = optCard.bottom() + GAP;
 
 				chkIgnoreSilent.setRect(0, sep3.y + 1 + GAP, width, BTN_HEIGHT);
 				height = chkIgnoreSilent.bottom();
 			} else if (chkMusicBG != null){
 				sep3.size(width, 1);
-				sep3.y = chkMuteSFX.bottom() + GAP;
+				sep3.y = optCard.bottom() + GAP;
 
 				chkMusicBG.setRect(0, sep3.y + 1 + GAP, width, BTN_HEIGHT);
 				height = chkMusicBG.bottom();

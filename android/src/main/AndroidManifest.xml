@@ -15,6 +15,10 @@
 	<queries>
 		<package android:name="com.ichi2.anki" />
 		<provider android:authorities="com.ichi2.anki.flashcards" />
+		<!-- reading {{tts}} card fields with the device's text-to-speech engine -->
+		<intent>
+			<action android:name="android.intent.action.TTS_SERVICE" />
+		</intent>
 	</queries>
 
 	<!--Auto-generated permission that isn't needed-->

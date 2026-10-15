@@ -7,7 +7,10 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Bundle;
 import android.os.SystemClock;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
@@ -19,9 +22,12 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
+import com.cramdungeon.AnkiPrefs;
 import com.cramdungeon.CardMedia;
+import com.cramdungeon.CardTts;
 
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -69,8 +75,24 @@ final class CardOverlay {
     private static Listener listener;
     private static CardMedia media;
 
-    private static final ArrayDeque<File> soundQueue = new ArrayDeque<>();
+    /** One thing to play: a card media file, or text for the device's TTS voice. */
+    private static final class Clip {
+        File file;
+        String text;
+        String lang;
+        float rate;
+    }
+
+    private static final ArrayDeque<Clip> soundQueue = new ArrayDeque<>();
     private static MediaPlayer player;
+
+    private static android.content.Context appContext;
+    private static TextToSpeech tts;
+    private static boolean ttsReady;
+    // the utterance being spoken; a TTS clip waits here while the engine starts up
+    private static String speaking;
+    private static Clip waitingForTts;
+    private static int utterances;
 
     private static long thinkLimitMs;
     // the clock: elapsed thinking time is now - shownAt while the question is up
@@ -93,6 +115,7 @@ final class CardOverlay {
 
         listener = onEvents;
         media = cardMedia;
+        appContext = activity.getApplicationContext();
         thinkLimitMs = thinkLimit;
         finished = false;
 
@@ -312,19 +335,33 @@ final class CardOverlay {
 
     // --- audio (UI thread)
 
-    private static void playSounds(String namesJson) {
+    private static void playSounds(String clipsJson) {
         stopSounds();
         CardMedia store = media;
-        if (store == null || web == null) {
+        if (web == null) {
             return;
         }
         try {
-            JSONArray names = new JSONArray(namesJson);
-            for (int i = 0; i < names.length(); i++) {
-                File f = store.file(names.optString(i));
-                if (f != null) {
-                    soundQueue.add(f);
+            JSONArray clips = new JSONArray(clipsJson);
+            for (int i = 0; i < clips.length(); i++) {
+                JSONObject o = clips.optJSONObject(i);
+                if (o == null) {
+                    continue;
                 }
+                Clip clip = new Clip();
+                if (o.has("f")) {
+                    clip.file = store != null ? store.file(o.optString("f")) : null;
+                    if (clip.file == null) {
+                        continue;
+                    }
+                } else if (o.has("t") && AnkiPrefs.tts()) {
+                    clip.text = o.optString("t");
+                    clip.lang = o.optString("l");
+                    clip.rate = (float) o.optDouble("r", 1);
+                } else {
+                    continue;
+                }
+                soundQueue.add(clip);
             }
         } catch (Exception e) {
             return;
@@ -334,14 +371,25 @@ final class CardOverlay {
 
     private static void playNext() {
         releasePlayer();
-        File next = soundQueue.poll();
+        speaking = null;
+        Clip next = soundQueue.poll();
         if (next == null) {
             return;
         }
+        if (next.file != null) {
+            playFile(next.file);
+        } else {
+            speak(next);
+        }
+    }
+
+    private static void playFile(File file) {
         MediaPlayer p = new MediaPlayer();
         player = p;
         try {
-            p.setDataSource(next.getAbsolutePath());
+            p.setDataSource(file.getAbsolutePath());
+            float volume = AnkiPrefs.cardVolumeLevel();
+            p.setVolume(volume, volume);
             p.setOnCompletionListener(mp -> {
                 if (player == mp) {
                     playNext();
@@ -364,6 +412,71 @@ final class CardOverlay {
         }
     }
 
+    private static void speak(Clip clip) {
+        if (tts == null) {
+            if (appContext == null) {
+                playNext();
+                return;
+            }
+            waitingForTts = clip;
+            tts = new TextToSpeech(appContext, status -> handler.post(() -> onTtsReady(status)));
+            tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override
+                public void onStart(String id) {
+                }
+
+                @Override
+                public void onDone(String id) {
+                    handler.post(() -> {
+                        if (id.equals(speaking)) {
+                            playNext();
+                        }
+                    });
+                }
+
+                @Override
+                public void onError(String id) {
+                    onDone(id);
+                }
+            });
+            return;
+        }
+        if (!ttsReady) {
+            waitingForTts = clip;
+            return;
+        }
+        int lang = tts.setLanguage(CardTts.locale(clip.lang));
+        if (lang == TextToSpeech.LANG_MISSING_DATA || lang == TextToSpeech.LANG_NOT_SUPPORTED) {
+            // no voice for this language on the device
+            playNext();
+            return;
+        }
+        tts.setSpeechRate(clip.rate);
+        Bundle params = new Bundle();
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, AnkiPrefs.cardVolumeLevel());
+        speaking = "card-" + (++utterances);
+        if (tts.speak(clip.text, TextToSpeech.QUEUE_FLUSH, params, speaking) != TextToSpeech.SUCCESS) {
+            playNext();
+        }
+    }
+
+    private static void onTtsReady(int status) {
+        ttsReady = status == TextToSpeech.SUCCESS;
+        if (!ttsReady) {
+            tts = null;
+        }
+        Clip waiting = waitingForTts;
+        waitingForTts = null;
+        if (waiting == null) {
+            return;
+        }
+        if (ttsReady) {
+            speak(waiting);
+        } else {
+            playNext();
+        }
+    }
+
     private static void releasePlayer() {
         if (player != null) {
             MediaPlayer p = player;
@@ -378,7 +491,12 @@ final class CardOverlay {
 
     private static void stopSounds() {
         soundQueue.clear();
+        waitingForTts = null;
         releasePlayer();
+        if (speaking != null && tts != null) {
+            speaking = null;
+            tts.stop();
+        }
     }
 
     private static class Bridge {

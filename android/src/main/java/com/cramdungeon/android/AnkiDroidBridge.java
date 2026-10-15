@@ -15,6 +15,8 @@ import android.util.Log;
 
 import com.cramdungeon.AnkiDeck;
 import com.cramdungeon.AnkiPlatform;
+import com.cramdungeon.AnkiPrefs;
+import com.cramdungeon.CardTts;
 import com.cramdungeon.CardMedia;
 import com.cramdungeon.CardOutcome;
 import com.cramdungeon.CardRequest;
@@ -61,9 +63,9 @@ public class AnkiDroidBridge implements AnkiPlatform {
     private static final Uri DECKS = Uri.withAppendedPath(BASE, "decks");
     private static final Uri SCHEDULE = Uri.withAppendedPath(BASE, "schedule");
 
-    // AnkiDroid hands audio over as [sound:file]; other av tags (TTS) can't be resolved here
+    // AnkiDroid hands audio over as [sound:file] and TTS as bare [anki:play:a:3] references
     private static final Pattern SOUND_TAG = Pattern.compile("\\[sound:([^\\]]+)\\]");
-    private static final Pattern OTHER_AV_TAG = Pattern.compile("\\[anki:play[^\\]]*\\]");
+    private static final Pattern PLAY_TAG = Pattern.compile("\\[anki:play[^\\]]*\\]");
     private static final Pattern SRC_ATTR = Pattern.compile("\\bsrc\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')",
             Pattern.CASE_INSENSITIVE);
 
@@ -82,7 +84,16 @@ public class AnkiDroidBridge implements AnkiPlatform {
 
     // new cards the player asked to learn once the due ones ran out (noteId, ord)
     private final ArrayDeque<long[]> extraNew = new ArrayDeque<>();
-    private final Map<Long, String> cssByModel = new HashMap<>();
+    private final Map<Long, NoteType> noteTypes = new HashMap<>();
+
+    /** What rendering needs from a note type, cached per id. */
+    private static class NoteType {
+        String css = "";
+        String[] fieldNames = new String[0];
+        boolean cloze;
+        // ord -> {question format, answer format}; loaded on first use (TTS only)
+        Map<Integer, String[]> templates;
+    }
     private String lastCardKey = "";
     private String template;
 
@@ -437,10 +448,32 @@ public class AnkiDroidBridge implements AnkiPlatform {
             answer = c.getString(1);
         }
 
-        String css = "";
-        try (Cursor c = resolver().query(noteUri, new String[]{"mid"}, null, null, null)) {
+        long modelId = -1;
+        String flds = "";
+        try (Cursor c = resolver().query(noteUri, new String[]{"mid", "flds"}, null, null, null)) {
             if (c != null && c.moveToFirst()) {
-                css = modelCss(c.getLong(0));
+                modelId = c.getLong(0);
+                flds = c.getString(1);
+            }
+        }
+        NoteType type = noteType(modelId);
+
+        List<CardTts.Speech> questionTts = CardTts.none();
+        List<CardTts.Speech> answerTts = CardTts.none();
+        boolean hasTts = PLAY_TAG.matcher(question).find() || PLAY_TAG.matcher(answer).find();
+        if (hasTts && AnkiPrefs.tts() && modelId != -1) {
+            try {
+                String[] tmpl = template(modelId, type, type.cloze ? 0 : card.ord);
+                Map<String, String> fields = new HashMap<>();
+                String[] values = (flds == null ? "" : flds).split("\u001f", -1);
+                for (int i = 0; i < type.fieldNames.length && i < values.length; i++) {
+                    fields.put(type.fieldNames[i], values[i]);
+                }
+                int clozeOrd = type.cloze ? card.ord + 1 : 0;
+                questionTts = CardTts.side(tmpl[0], fields, CardTts.none(), clozeOrd, true);
+                answerTts = CardTts.side(tmpl[1], fields, questionTts, clozeOrd, false);
+            } catch (Exception e) {
+                Log.w(TAG, "working out TTS for card " + card.key() + " failed", e);
             }
         }
 
@@ -454,33 +487,75 @@ public class AnkiDroidBridge implements AnkiPlatform {
 
         return template()
                 .replace("%%CONFIG%%", config.toString())
-                .replace("%%CSS%%", css)
-                .replace("%%QUESTION%%", clean(question))
-                .replace("%%ANSWER%%", clean(answer));
+                .replace("%%CSS%%", type.css)
+                .replace("%%QUESTION%%", clean(question, questionTts))
+                .replace("%%ANSWER%%", clean(answer, answerTts));
     }
 
-    private String modelCss(long modelId) {
-        String css = cssByModel.get(modelId);
-        if (css != null) {
-            return css;
+    private NoteType noteType(long modelId) {
+        NoteType type = noteTypes.get(modelId);
+        if (type != null) {
+            return type;
         }
-        css = "";
-        Uri modelUri = Uri.withAppendedPath(MODELS, Long.toString(modelId));
-        try (Cursor c = resolver().query(modelUri, new String[]{"css"}, null, null, null)) {
-            if (c != null && c.moveToFirst() && c.getString(0) != null) {
-                css = c.getString(0);
+        type = new NoteType();
+        if (modelId != -1) {
+            Uri modelUri = Uri.withAppendedPath(MODELS, Long.toString(modelId));
+            try (Cursor c = resolver().query(modelUri, new String[]{"css", "field_names", "type"},
+                    null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    type.css = c.getString(0) != null ? c.getString(0) : "";
+                    type.fieldNames = c.getString(1) != null ? c.getString(1).split("\u001f", -1) : new String[0];
+                    type.cloze = c.getInt(2) == 1;
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "reading note type " + modelId + " failed", e);
             }
         }
-        cssByModel.put(modelId, css);
-        return css;
+        noteTypes.put(modelId, type);
+        return type;
     }
 
-    /** Sound tags become play buttons (the page autoplays them); unplayable av tags go. */
-    private static String clean(String html) {
+    /** {question format, answer format} of a card template. */
+    private String[] template(long modelId, NoteType type, int ord) {
+        if (type.templates == null) {
+            type.templates = new HashMap<>();
+            Uri uri = Uri.withAppendedPath(Uri.withAppendedPath(MODELS, Long.toString(modelId)), "templates");
+            try (Cursor c = resolver().query(uri, new String[]{"ord", "question_format", "answer_format"},
+                    null, null, null)) {
+                while (c != null && c.moveToNext()) {
+                    type.templates.put(c.getInt(0), new String[]{c.getString(1), c.getString(2)});
+                }
+            }
+        }
+        String[] t = type.templates.get(ord);
+        return t != null ? t : new String[]{"", ""};
+    }
+
+    /**
+     * Sound tags become play buttons (the page autoplays them). TTS references are
+     * numbered in the same order as {@code tts}; they become buttons too, or go if
+     * TTS is off or couldn't be worked out.
+     */
+    private static String clean(String html, List<CardTts.Speech> tts) {
         if (html == null) {
             return "";
         }
-        html = OTHER_AV_TAG.matcher(html).replaceAll("");
+        Matcher play = PLAY_TAG.matcher(html);
+        StringBuffer spoken = new StringBuffer();
+        int k = 0;
+        while (play.find()) {
+            String button = "";
+            if (k < tts.size()) {
+                CardTts.Speech sp = tts.get(k);
+                button = "<button class=\"snd\" data-tts=\"" + escapeAttr(sp.text) + "\" data-lang=\""
+                        + escapeAttr(sp.lang) + "\" data-rate=\"" + sp.rate + "\" title=\""
+                        + escapeAttr(sp.text) + "\">\u25B6</button>";
+            }
+            k++;
+            play.appendReplacement(spoken, Matcher.quoteReplacement(button));
+        }
+        play.appendTail(spoken);
+        html = spoken.toString();
         Matcher m = SOUND_TAG.matcher(html);
         StringBuffer out = new StringBuffer();
         while (m.find()) {

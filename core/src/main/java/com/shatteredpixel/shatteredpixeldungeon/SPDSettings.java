@@ -368,6 +368,8 @@ public class SPDSettings extends GameSettings {
 	
 	public static final String KEY_MUSIC		= "music";
 	public static final String KEY_MUSIC_VOL    = "music_vol";
+	//Cram Dungeon: quieter by default, so card audio stands out
+	public static final int DEFAULT_VOLUME      = 6;
 	public static final String KEY_SOUND_FX		= "soundfx";
 	public static final String KEY_SFX_VOL      = "sfx_vol";
 	public static final String KEY_IGNORE_SILENT= "ignore_silent";
@@ -388,7 +390,7 @@ public class SPDSettings extends GameSettings {
 	}
 	
 	public static int musicVol(){
-		return getInt( KEY_MUSIC_VOL, 10, 0, 10 );
+		return getInt( KEY_MUSIC_VOL, DEFAULT_VOLUME, 0, 10 );
 	}
 	
 	public static void soundFx( boolean value ) {
@@ -406,7 +408,7 @@ public class SPDSettings extends GameSettings {
 	}
 	
 	public static int SFXVol() {
-		return getInt( KEY_SFX_VOL, 10, 0, 10 );
+		return getInt( KEY_SFX_VOL, DEFAULT_VOLUME, 0, 10 );
 	}
 
 	public static void ignoreSilentMode( boolean value ){

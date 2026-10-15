@@ -42,6 +42,10 @@ Flashcards > Card media > Import**. Exporting the same deck again later only add
 new or changed files. Card audio plays when a side is shown (the answer side
 skips sounds already heard on the question) and the ▶ buttons replay it. If a
 card refers to files that haven't been imported, it says so under the card.
+Text-to-speech fields (`{{tts ja_JP:Field}}`, `[anki:tts]` tags) are read by the
+device's TTS voice (turn off with *Read TTS fields*); a language with no voice
+installed stays silent. Card audio has its own volume slider in **Settings >
+Audio**. The game's music and sound effects start at 6/10.
 
 A correct answer scores 1.0 when instant and drops to 0.5 at the time limit.
 Hard counts a little lower and Easy a little higher. A miss scores 0.
@@ -71,7 +75,7 @@ Every trigger can be turned off on its own in settings.
 - AnkiDroid only. Anki desktop and AnkiMobile have no API for other apps.
 - Card images and audio need a one-off export from AnkiDroid (see above); new
   media needs another export. Text, HTML, styling and furigana (`<ruby>`) work
-  straight away. Text-to-speech fields (`{{tts:...}}`) don't play.
+  straight away.
 - Enemy abilities that don't roll to hit (gas vents, summons, debuff fists) don't ask cards.
 - New text is English only.
 

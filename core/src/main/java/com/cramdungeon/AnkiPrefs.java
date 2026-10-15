@@ -8,6 +8,8 @@ public final class AnkiPrefs {
     public static final String DECK_NAME = "anki_deck_name";
     public static final String THINK_TIME = "anki_think_time";
     public static final String SIMPLE_GRADING = "anki_simple_grading";
+    public static final String TTS = "anki_tts";
+    public static final String CARD_VOLUME = "anki_card_volume";
 
     public static final String TRIGGER_COMBAT = "anki_trigger_combat";
     public static final String TRIGGER_ITEMS = "anki_trigger_items";
@@ -61,6 +63,30 @@ public final class AnkiPrefs {
 
     public static void simpleGrading(boolean value) {
         GameSettings.put(SIMPLE_GRADING, value);
+    }
+
+    /** Read {{tts}} fields aloud with the device's text-to-speech. */
+    public static boolean tts() {
+        return GameSettings.getBoolean(TTS, true);
+    }
+
+    public static void tts(boolean value) {
+        GameSettings.put(TTS, value);
+    }
+
+    /** Card audio volume, 0..10 like the game's music and sound sliders. */
+    public static int cardVolume() {
+        return GameSettings.getInt(CARD_VOLUME, 10, 0, 10);
+    }
+
+    public static void cardVolume(int value) {
+        GameSettings.put(CARD_VOLUME, value);
+    }
+
+    /** The same curve the game uses for its own volume sliders. */
+    public static float cardVolumeLevel() {
+        int v = cardVolume();
+        return v * v / 100f;
     }
 
     public static boolean trigger(String key) {
