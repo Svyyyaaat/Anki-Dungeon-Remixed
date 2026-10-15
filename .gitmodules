@@ -1,0 +1,3 @@
+[submodule "luaj"]
+	path = luaj
+	url = https://github.com/NYRDS/luaj.git

@@ -1,0 +1,29 @@
+{
+  "texture": "blacksmith.png",
+  "width": 13,
+  "height": 16,
+  "idle": { "fps": 15, "looped": true, "frames": [0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 2, 3] },
+  "attack": { "fps": 15, "looped": true, "frames": [0] },
+  "run": { "fps": 20, "looped": true, "frames": [0] },
+  "die": { "fps": 20, "looped": false, "frames": [0] },
+
+  "eventHandlers": {
+    "onComplete": [
+      {
+        "animation": "idle",
+        "actions": [
+          {
+            "action": "emitParticles",
+            "particleType": "Speck.FORGE",
+            "count": 3
+          },
+          {
+            "action": "playSound",
+            "sound": "snd_evoke",
+            "volume": 0.2
+          }
+        ]
+      }
+    ]
+  }
+}

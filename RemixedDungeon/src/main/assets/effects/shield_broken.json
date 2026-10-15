@@ -1,0 +1,6 @@
+{
+  "texture" : "effects/shield_effect.png",
+  "width"  : 16,
+  "height" : 16,
+  "anim"   : { "fps" : 15,  "looped" : false,    "frames" : [5,8,9,10,11,12,13] }
+}

@@ -1,0 +1,283 @@
+package com.nyrds.pixeldungeon.items;
+
+import androidx.annotation.Keep;
+import com.nyrds.LuaInterface;
+import com.nyrds.Packable;
+import com.nyrds.pixeldungeon.effects.Devour;
+import com.nyrds.pixeldungeon.items.common.ItemFactory;
+import com.nyrds.pixeldungeon.mechanics.buffs.BuffFactory;
+import com.nyrds.pixeldungeon.ml.R;
+import com.nyrds.pixeldungeon.utils.CharsList;
+import com.nyrds.platform.util.StringsManager;
+import com.watabou.noosa.Image;
+import com.watabou.pixeldungeon.Dungeon;
+import com.watabou.pixeldungeon.ResultDescriptions;
+import com.watabou.pixeldungeon.actors.Actor;
+import com.watabou.pixeldungeon.actors.Char;
+import com.watabou.pixeldungeon.actors.buffs.Buff;
+import com.watabou.pixeldungeon.actors.hero.Doom;
+import com.watabou.pixeldungeon.actors.mobs.Mob;
+import com.watabou.pixeldungeon.effects.CellEmitter;
+import com.watabou.pixeldungeon.effects.Speck;
+import com.watabou.pixeldungeon.effects.Wound;
+import com.watabou.pixeldungeon.items.Item;
+import com.watabou.pixeldungeon.levels.Level;
+import com.watabou.pixeldungeon.scenes.GameScene;
+import com.watabou.pixeldungeon.sprites.DummySprite;
+import com.watabou.pixeldungeon.utils.GLog;
+import com.watabou.pixeldungeon.utils.Utils;
+import com.watabou.pixeldungeon.windows.WndBag;
+import java.util.ArrayList;
+import lombok.val;
+import org.jetbrains.annotations.NotNull;
+
+public class Carcass extends Item implements Doom {
+    public static final String AC_NECROMANCY = "AC_Necromancy";
+    public static final String AC_DEVOUR = "AC_Devour";
+    public static final String AC_KICK = "AC_Kick";
+    private static final String AC_DISSECT = "AC_Dissect";
+    public static final String CARCASS_OF = "Carcass of ";
+    public static final String CARCASS = "Carcass";
+
+    @Packable
+    public Char src = CharsList.DUMMY;
+
+    @Packable
+    public int ttl = 10;
+
+    static final int MAX_TTL = 10;
+
+    {
+        stackable = true;
+    }
+
+    @Keep
+    public Carcass() {
+    }
+
+    public Carcass(Char src) {
+        this.src = src;
+        Actor.add(this);
+        spend(10);
+    }
+
+    @Override
+    protected void act() {
+        spend(1);
+        if(getOwner().valid()) {
+            ttl = MAX_TTL;
+            return;
+        }
+        ttl--;
+        if(ttl <= 0) {
+            // caveman: stacked carcasses merge into one heap item - the merged-away
+            // copies stay in the actor set with no heap and would tick forever
+            deactivateActor();
+            val heap = getHeap();
+            if(heap!= null) {
+                heap.replace(this, null);
+                heap.updateHeap();
+                CellEmitter.center(heap.pos).burst(Speck.factory(Speck.EVOKE), 3);
+            }
+        }
+    }
+
+    @Override
+    public Image getCustomImage() {
+        if(src.valid()) {
+            return src.newSprite().carcass();
+        } else {
+            return DummySprite.instance;
+        }
+
+    }
+
+    @Override
+    public String name() {
+        return Utils.format(R.string.Carcass_Name, src.getName());
+    }
+
+    @Override
+    public String desc() {
+        return Utils.format(R.string.Carcass_Info, src.getName());
+    }
+
+    @Override
+    public ArrayList<String> actions(Char hero) {
+        var actions = super.actions(hero);
+        if(getHeap()!= null) {
+            actions.add(AC_KICK);
+        }
+
+        switch (hero.getHeroClass()) {
+            case NECROMANCER:
+                actions.add(AC_NECROMANCY);
+            break;
+            case GNOLL:
+                if(hero.hunger().isHungry()) {
+                    actions.add(AC_DEVOUR);
+                }
+            break;
+            case DOCTOR:
+                actions.add(AC_DISSECT);
+            break;
+        }
+
+        return actions;
+    }
+
+
+    @LuaInterface
+    @Override
+    public void _execute(@NotNull Char chr, @NotNull String action){
+        if(action.equals(AC_KICK)) {
+            GLog.i(Utils.format(R.string.Carcass_Kick, src.getName()));
+            consumedOneBy(chr);
+        }
+
+        if (action.equals(AC_NECROMANCY)) {
+            reanimate(chr, false);
+        } else if (action.equals(AC_DEVOUR)) {
+            Devour.hit(chr);
+            int mult = upgradeMultiplier();
+            chr.eat(this, src.ht() * mult, Utils.format(R.string.Carcass_Devoured, src.getName()));
+            chr.heal(src.ht() * mult / 10, this);
+
+        } else if (action.equals(AC_DISSECT)) {
+            if (getHeap()!= null && !chr.level().adjacent(chr.getPos(), getPos())) {
+                GLog.i(Utils.format(R.string.Carcass_TooFarToDissect));
+            } else {
+                dissect(chr);
+            }
+        } else {
+            super._execute(chr, action);
+        }
+    }
+
+    private void dissect(Char chr) {
+        int pos = chr.getPos();
+        var heap = getHeap();
+        int effectPos = pos;
+        if (heap != null) {
+            effectPos = heap.pos;
+        }
+
+        Wound.hit(effectPos);
+
+        // Create random harvestable items to drop
+        String[] harvestItems = {"ToxicGland", "RottenOrgan", "BoneShard"};
+
+        // constructs and non-corporeal beings leave a carcass, but nothing dissectable
+        int itemCount = src.hasBodyParts() ? Math.max(1, src.ht() * upgradeMultiplier() / 20) : 0;
+
+        int itemsObtained = 0;
+        for (int i = 0; i < itemCount; i++) {
+            String randomItem = harvestItems[(int)(Math.random() * harvestItems.length)];
+            try {
+                Item item = ItemFactory.itemByName(randomItem);
+                if (item.valid()) {
+                    chr.level().animatedDrop(item, pos);
+                    itemsObtained++;
+                }
+            } catch (Exception e) {
+                // If there's an error creating the item, continue to the next iteration
+                continue;
+            }
+        }
+
+        if (itemsObtained > 0) {
+            // caveman: plural-free strings - RU has 3 plural forms, not worth the logic
+            if (itemsObtained == 1) {
+                GLog.i(Utils.format(R.string.Carcass_DissectResult_One, src.getName()));
+            } else {
+                GLog.i(Utils.format(R.string.Carcass_DissectResult_Many, src.getName(), itemsObtained));
+            }
+        } else {
+            GLog.i(Utils.format(R.string.Carcass_DissectFailed, src.getName()));
+        }
+        consumedOneBy(chr);
+    }
+
+    public static void selectItemByEntityNames(Char selector, String[] entityNames, WndBag.Listener callback) {
+        GameScene.selectItem(
+            selector,
+            callback,
+            WndBag.Mode.ENTITY_NAMES,
+            StringsManager.getVar(R.string.Carcass_SelectItem),
+            entityNames
+        );
+    }
+
+    @LuaInterface
+    public Char reanimate(Char caster, boolean byMagic) {
+        Level level = caster.level();
+        int casterPos = caster.getPos();
+        int spawnPos = level.getEmptyCellNextTo(casterPos);
+
+        Wound.hit(caster);
+        if(!byMagic) {
+            caster.damage(src.ht() / 4, this);
+        }
+
+        Buff.detach(caster, BuffFactory.HEALTH);
+
+        if (level.cellValid(spawnPos)) {
+            src.setPos(caster.getPos());
+            var pet = Mob.makePet((Mob) src.makeClone(), caster.getId());
+            pet.regenSprite();
+            pet.assignNextId();
+            pet.setUndead(true);
+            int mult = upgradeMultiplier();
+            pet.lvl(caster.skillLevel() + level());
+            pet.hp(1); //it's alive!
+            pet.heal(pet.ht() * (caster.skillLevel() + level()) * mult / 10);
+            pet.getBelongings().clear();
+            if (byMagic) {
+                pet.heal(pet.ht());
+            }
+            pet.setPos(spawnPos);
+            level.spawnMob(pet, 0, casterPos);
+            GLog.p(Utils.format(R.string.Carcass_Necromancy, pet.getName()));
+        } else {
+            GLog.n(Utils.format(R.string.Carcass_Necromancy_Failed, src.getName()));
+            return CharsList.DUMMY;
+        }
+        consumedOneBy(caster);
+        return caster;
+    }
+
+    @Override
+    public void onHeroDeath() {
+        Dungeon.fail( Utils.format( ResultDescriptions.getDescription(ResultDescriptions.Reason.NECROMANCY), Dungeon.depth ) );
+        GLog.n(StringsManager.getVar(R.string.Necromancy_Death));
+    }
+
+    @Override
+    public String getEntityKind() {
+        if (src != null && src.valid()) {
+            return CARCASS_OF + src.getEntityKind();
+        } else {
+            return CARCASS;
+        }
+    }
+
+    @Override
+    public boolean isIdentified() {
+        return true;
+    }
+
+    /**
+     * Super-linear upgrade multiplier: (1 + level)²
+     * +0 = 1x, +1 = 4x, +2 = 9x, +3 = 16x
+     */
+    public int upgradeMultiplier() {
+        int lvl = level();
+        return (lvl + 1) * (lvl + 1);
+    }
+
+    @Override
+    public int price() {
+        // caveman: divide last, small critters (ht<6) must stay sellable
+        return Math.max(1, src.ht() * quantity() * upgradeMultiplier() / 6);
+    }
+}

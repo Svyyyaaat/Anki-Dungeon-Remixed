@@ -1,0 +1,219 @@
+// Main Application - SpriteViewer
+
+import { MobLoader } from './mob-loader.js';
+import { HeroLoader } from './hero-loader.js';
+import { Renderer } from './renderer.js';
+import { UIManager } from './ui-manager.js';
+import { AnimationController, isAnimationDesc } from './animation-controller.js';
+import { HERO_CLASSES, SUBCLASSES, ARMOR_LIST, WEAPON_LIST, LAYERS_ORDER } from './config.js';
+
+class SpriteViewer {
+    constructor() {
+        this.canvas = document.getElementById('spriteCanvas');
+        
+        // State
+        this.currentMob = null;
+        this.currentHero = null;
+        this.currentAnim = 'idle';
+        this.scale = 4;
+        this.isHeroMode = false;
+        
+        // Component instances
+        this.mobLoader = new MobLoader();
+        this.heroLoader = new HeroLoader();
+        this.renderer = new Renderer(this.canvas);
+        this.uiManager = new UIManager(this);
+        this.animationController = new AnimationController();
+        
+        // Hero textures and layers (managed by heroLoader but cached here for rendering)
+        this.heroTextures = {};
+        this.heroLayers = [];
+        
+        this.init();
+    }
+    
+    async init() {
+        this.uiManager.setupEventListeners();
+        this.uiManager.setupHeroSelectors(ARMOR_LIST, WEAPON_LIST, SUBCLASSES);
+        await this.reloadData();
+        this.uiManager.hideLoading();
+        this.startRenderLoop();
+    }
+
+    // (re)load the mob list for the active data source and select a first
+    // entry; in hero mode the current hero configuration is re-applied
+    async reloadData() {
+        const mobNames = await this.mobLoader.loadMobList();
+        this.uiManager.populateMobList(mobNames, (mobName) => this.selectMob(mobName));
+
+        if (this.isHeroMode && this.currentHero) {
+            await this.applyHeroConfiguration();
+        } else if (mobNames.length > 0) {
+            await this.selectMob(mobNames[0]);
+        }
+    }
+    
+    async selectMob(mobName) {
+        try {
+            this.uiManager.updateMobSelectionUI(mobName);
+            
+            const result = await this.mobLoader.selectMob(mobName);
+            
+            this.currentMob = result.mob;
+            this.currentHero = null;
+            
+            const animations = this.mobLoader.getAvailableAnimations(this.currentMob.data);
+            this.currentAnim = this.uiManager.updateAnimationSelect(animations, this.currentAnim, this.currentMob.data);
+            
+            this.uiManager.updateInfoPanel(
+                this.currentMob.name,
+                `${this.currentMob.width}x${this.currentMob.height}`,
+                this.currentMob.data.texture,
+                animations
+            );
+
+            this.animationController.reset();
+            this.uiManager.refreshLoopIndicator();
+
+        } catch (error) {
+            console.error(`Failed to load ${mobName}:`, error);
+            alert(error.message);
+        }
+    }
+    
+    switchToMobMode() {
+        this.isHeroMode = false;
+        document.getElementById('modeMobBtn').classList.add('active');
+        document.getElementById('modeHeroBtn').classList.remove('active');
+        document.getElementById('mobSection').style.display = 'block';
+        document.getElementById('heroSection').style.display = 'none';
+        document.getElementById('infoLayersRow').style.display = 'none';
+    }
+    
+    switchToHeroMode() {
+        this.isHeroMode = true;
+        document.getElementById('modeMobBtn').classList.remove('active');
+        document.getElementById('modeHeroBtn').classList.add('active');
+        document.getElementById('mobSection').style.display = 'none';
+        document.getElementById('heroSection').style.display = 'block';
+        document.getElementById('infoLayersRow').style.display = 'flex';
+    }
+    
+    updateSubclassOptions(heroClass) {
+        this.uiManager.updateSubclassOptions(heroClass, SUBCLASSES);
+    }
+    
+    async applyHeroConfiguration() {
+        const config = this.uiManager.getHeroConfiguration();
+        await this.loadHero(config.style, config.heroClass, config.subClass,
+                            config.armor, config.weapon, config.leftWeapon);
+    }
+
+    async loadHero(style, heroClass, subClass, armor, weapon, leftWeapon) {
+        try {
+            const result = await this.heroLoader.loadHero(style, heroClass, subClass,
+                                                          armor, weapon, leftWeapon);
+            
+            this.currentHero = result.hero;
+            this.heroTextures = result.textures;
+            this.heroLayers = result.layers;
+            this.currentMob = null;
+            
+            const animations = Object.keys(this.currentHero.data).filter(key =>
+                isAnimationDesc(this.currentHero.data[key])
+            );
+            
+            this.currentAnim = this.uiManager.updateAnimationSelect(animations, this.currentAnim, this.currentHero.data);
+            
+            this.uiManager.updateInfoPanel(
+                this.currentHero.name,
+                `${this.currentHero.width}x${this.currentHero.height}`,
+                this.currentHero.style + ' hero',
+                animations,
+                this.heroLayers
+            );
+
+            this.animationController.reset();
+            this.uiManager.refreshLoopIndicator();
+
+        } catch (error) {
+            console.error(`Failed to load hero:`, error);
+            alert(`Failed to load hero configuration.`);
+        }
+    }
+    
+    resetAnimation() {
+        this.animationController.reset();
+    }
+    
+    getCurrentData() {
+        if (this.isHeroMode) {
+            if (!this.currentHero) {
+                return null;
+            }
+            const data = this.currentHero.data;
+            // the game swaps attack/zap to a weapon-specific sequence
+            // (ModernHeroSpriteDef.heroUpdated -> weapon_anim)
+            const override = this.currentHero.attackOverride;
+            if (override && data.weapon_anim && data.weapon_anim[override]) {
+                return Object.assign({}, data, {
+                    attack: data.weapon_anim[override],
+                    zap: data.weapon_anim[override]
+                });
+            }
+            return data;
+        } else {
+            return this.currentMob ? this.currentMob.data : null;
+        }
+    }
+    
+    render() {
+        this.renderer.clear();
+        
+        if (this.isHeroMode) {
+            if (this.currentHero) {
+                this.renderer.renderHero(
+                    this.currentHero,
+                    this.heroTextures,
+                    this.heroLayers,
+                    this.currentAnim,
+                    this.animationController.getCurrentFrame(),
+                    this.scale
+                );
+            }
+        } else {
+            if (this.currentMob) {
+                this.renderer.renderMob(
+                    this.currentMob,
+                    this.mobLoader.textureImage,
+                    this.currentAnim,
+                    this.animationController.getCurrentFrame(),
+                    this.scale
+                );
+            }
+        }
+    }
+    
+    updateAnimation(currentTime) {
+        const data = this.getCurrentData();
+        if (!data) {
+            return;
+        }
+        
+        this.animationController.update(currentTime, data, this.currentAnim);
+    }
+    
+    startRenderLoop() {
+        const loop = (currentTime) => {
+            this.updateAnimation(currentTime);
+            this.render();
+            requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
+    }
+}
+
+// Initialize the application when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.spriteViewer = new SpriteViewer();
+});

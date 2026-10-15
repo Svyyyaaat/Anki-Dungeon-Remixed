@@ -1,0 +1,11 @@
+{
+   "baseSpeed"     :0,
+   "spriteDesc"    :"spritesDesc/BishopNPC.json",
+   "scriptFile"    :"scripts/npc/Bishop",
+   "friendly"      :true,
+   "movable"       :false,
+   "aiState"       :"Passive",
+   "fraction"      :"NEUTRAL",
+   "immortal"      :true,
+   "isHumanoid"    :true
+}

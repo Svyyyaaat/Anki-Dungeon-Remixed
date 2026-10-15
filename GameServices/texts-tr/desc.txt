@@ -1,0 +1,31 @@
+Bu açık kaynaklı piksel grafikli roguelike bir oyundur
+
+Uzun zaman önce küçük bir kasaba varmış. Mutlu bir hayat süren kasaba halkı o kadar fakirmiş ki hiçbiri tatil için ayıracak para bulamıyormuş. Ama herkesin tüm umutlarını yitirdiği gün, bir mucize gerçekleşmiş. Kasabanın zemini şiddetli bir şekilde sarsılmış ve on binlerce hilkat garibesini gün yüzüne çıkarmış. O güden itibaren hayatta kalan tüm kasaba halkı daima mutlu yaşamış. Neden mi? Çünkü zindan her türlü kahramanın ve maceracının dikkatini çekmiş. Masumları korumuşlar ve ciddi miktarlarda para harcayarak kasabanın ekonomisini güçlendirmişler.
+Ve kasaba, can vermiş maceracıların ve zavallı ruhlarının dolup taştığı bu zindanın tepesinde durdukça, zenginliğine zenginlik katmaya devam edecek.
+
+Oyun özellikleri:
+- Bu oyun kullanıcılar tarafından yapılmış modları destekler! Bu özellik geliştirildikçe sen de Remixed Dungeon'ın içinde yepyeni bir oyun yapabileceksin!
+- Ekstrem roguelike deneyimi!
+- Seçilebilir 7 kahraman sınıfı
+- Kasaba merkezi sizi maceranıza hazırlayacak ve oyun dünyasını tanıtacak
+- 6 türe ayrılmış 30'u aşkın zindan türü
+- 3 isteğe bağlı zindan: Örümcek İni, Ölü kent, Buz Mağaraları
+- Düzinelerce eşya ve canavarlar
+- Çeşitli bosslar
+- Şapkalar! Kim şapka sevmez ki?
+
+Discord sunucumuza katılın:
+https://discordapp.com/invite/AMXrhQZ
+
+Bizi Twitter'da takip edin:
+https://twitter.com/nyrds
+
+Bu oyun bir GPLv3 Lisanslı açık kaynaklı yazılımdır. Remixed Dungeon'ın kaynak kodu şu adreste bulunmaktadır:
+https://github.com/NYRDS/remixed-dungeon
+
+Eğer diğer dillere çevrilmesinde katkıda bulunmak istiyorsanız lütfen şu adresi ziyaret edin:
+https://www.transifex.com/projects/p/remixed-dungeon/
+
+Oyundaki değişiklikleri
+http://wiki.nyrds.net/doku.php?id=rpd:changelog
+adresinden kontrol edebilirsin

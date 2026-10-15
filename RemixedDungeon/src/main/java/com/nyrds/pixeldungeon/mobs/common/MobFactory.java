@@ -1,0 +1,251 @@
+package com.nyrds.pixeldungeon.mobs.common;
+
+import com.nyrds.LuaInterface;
+import com.nyrds.pixeldungeon.mobs.npc.ServiceManNPC;
+import com.nyrds.platform.util.TrackedRuntimeException;
+import com.nyrds.util.JsonHelper;
+import com.nyrds.util.ModdingMode;
+import com.watabou.noosa.Image;
+import com.watabou.pixeldungeon.Challenges;
+import com.watabou.pixeldungeon.Dungeon;
+import com.watabou.pixeldungeon.actors.mobs.Mob;
+import com.watabou.pixeldungeon.utils.GLog;
+import com.watabou.pixeldungeon.utils.Utils;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.json.JSONException;
+
+
+
+
+@LuaInterface
+public class MobFactory {
+	public static final String RAT = "Rat";
+	public static final String BAT = "Bat";
+	public static final String DEEP_SNAIL = "DeepSnail";
+	public static final String SHAMAN_ELDER = "ShamanElder";
+	public static final String PSEUDO_RAT = "PseudoRat";
+	public static final String SPIRIT_OF_PAIN = "SpiritOfPain";
+	public static final String SNAIL = "Snail";
+	public static final String SHEEP = "Sheep";
+	public static final String ELEMENTAL = "Elemental";
+	public static final String STATUE = "Statue";
+	public static final String ARMORED_STATUE = "ArmoredStatue";
+	public static final String GOLDEN_STATUE = "GoldenStatue";
+	public static final String MIRROR_IMAGE = "MirrorImage";
+	public static final String WRAITH = "Wraith";
+	public static final String WARLOCK = "Warlock";
+	public static final String SPIDER_SERVANT = "SpiderServant";
+	public static final String SPIDER_GUARD = "SpiderGuard";
+	public static final String SPIDER_MIND_AMBER = "SpiderMindAmber";
+	public static final String SPIDER_EGG = "SpiderEgg";
+	public static final String SPIDER_NEST = "SpiderNest";
+	public static final String SPIDER_QUEEN = "SpiderQueen";
+	public static final String EYE = "Eye";
+	public static final String JAR_OF_SOULS = "JarOfSouls";
+	public static final String SKELETON = "Skeleton";
+	public static final String FETID_RAT = "FetidRat";
+	public static final String SUSPICIOUS_RAT = "SuspiciousRat";
+	public static final String GHOST = "Ghost";
+	public static final String UNDEAD = "Undead";
+	public static final String SHOPKEEPER = "Shopkeeper";
+	public static final String TOWN_SHOPKEEPER = "TownShopkeeper";
+	public static final String MIMIC = "Mimic";
+	public static final String MIMIC_PIE = "MimicPie";
+	public static final String MIMIC_AMULET = "MimicAmulet";
+	public static final String ALBINO = "Albino";
+	public static final String SHIELDED = "Shielded";
+	public static final String SHADOW = "Shadow";
+	public static final String SHADOW_LORD = "ShadowLord";
+	public static final String CRYSTAL = "Crystal";
+	public static final String DREAD_KNIGHT = "DreadKnight";
+	public static final String TREACHEROUS_SPIRIT = "TreacherousSpirit";
+	public static final String GNOLL = "Gnoll";
+	public static final String CRAB = "Crab";
+	public static final String GOLEM = "Golem";
+		public static final String MONK = "Monk";
+		public static final String SENIOR = "Senior";
+	public static final String BANDIT = "Bandit";
+	public static final String ACIDIC = "Acidic";
+	public static final String SCORPIO = "Scorpio";
+	public static final String FIRE_ELEMENTAL = "FireElemental";
+	public static final String AIR_ELEMENTAL = "AirElemental";
+	public static final String WATER_ELEMENTAL = "WaterElemental";
+	public static final String EARTH_ELEMENTAL = "EarthElemental";
+	public static final String PIRANHA = "Piranha";
+	public static final String ICE_GUARDIAN = "IceGuardian";
+	public static final String YOGS_EYE = "YogsEye";
+	public static final String BURNING_FIST = "BurningFist";
+	public static final String ROTTING_FIST = "RottingFist";
+	public static final String RAT_KING = "RatKing";
+	public static final String HEDGEHOG = "Hedgehog";
+	public static final String NECROMANCER_NPC = "NecromancerNPC";
+	public static final String WANDMAKER = "WandMaker";
+	public static final String IMP = "Imp";
+	public static final String SCARECROW = "ScarecrowNPC";
+	public static final String CAGED_KOBOLD = "CagedKobold";
+	public static final String BLACKSMITH = "Blacksmith";
+	public static final String AZUTERRON = "AzuterronNPC";
+	public static final String IMP_SHOPKEEPER = "ImpShopkeeper";
+
+	static private Map<String, Class<? extends Mob>> mMobsList;
+
+	static {
+		initMobsMap();
+
+		for(String mobFile: ModdingMode.listResources("mobsDesc", (dir, name) -> name.endsWith(".json"))) {
+			String mobKind = mobFile.replace(".json", Utils.EMPTY_STRING);
+			if(!mMobsList.containsKey(mobKind)) {	// do not shadow built-in classes by partial json definitions
+				mMobsList.put(mobKind, Mob.class);
+			}
+		}
+	}
+
+	private static void registerMobClass(Class<? extends Mob> mobClass) {
+		mMobsList.put(mobClass.getSimpleName(), mobClass);
+	}
+	
+	private static void initMobsMap() {
+
+		mMobsList = new HashMap<>();
+		// Goo kind is data now (mobsDesc/Goo.json, batch 17c-1)
+		// - java class deleted, kind must never resolve to java.
+
+		// Tengu kind is data now (mobsDesc/Tengu.json, batch 17d-1)
+		// - java class deleted, kind must never resolve to java.
+
+		// SpiderQueen kind is data now (mobsDesc/SpiderQueen.json, batch 17c-2a)
+		// - java class deleted, kind must never resolve to java.
+
+		// King kind is data now (mobsDesc/King.json, batch 17d-4)
+		// - java class deleted, kind must never resolve to java.
+		// Monk/Senior/Undead kinds are data now (mobsDesc/*.json, batch 17b)
+		// - classes deleted, kinds must never resolve to java.
+		// DM300/Deathling kinds are data now (mobsDesc/*.json, batch 17c-2b).
+
+		// Eye kind is data now (mobsDesc/Eye.json, batch 17c-2a)
+		// - java class deleted, kind must never resolve to java.
+		// Larva/YogsHeart/YogsTeeth/YogsBrain/BurningFist/RottingFist/YogsEye
+		// kinds are data now (mobsDesc/*.json, batch 17d-2)
+		// - classes deleted, kinds must never resolve to java.
+
+		// Statue/ArmoredStatue/GoldenStatue kinds are data now
+		// (mobsDesc/*.json) - classes deleted, kinds must never resolve to java.
+		// ShadowLord/Crystal kinds are data now (mobsDesc/ShadowLord.json,
+		// mobsDesc/Crystal.json, batch 17d-5) - java classes deleted, kinds
+		// must never resolve to java.
+
+		// Lich/RunicSkull kinds are data now (mobsDesc/Lich.json,
+		// mobsDesc/RunicSkull.json, batch 17d-3) - java classes deleted,
+		// kinds must never resolve to java.
+
+
+		// IceGuardian/IceGuardianCore kinds are data now
+		// (mobsDesc/IceGuardian.json, mobsDesc/IceGuardianCore.json, batch 17d-1)
+		// - java classes deleted, kinds must never resolve to java.
+
+		// Hedgehog/HealerNPC/TownGuardNPC/Townsfolk*NPC/LibrarianNPC/
+		// BellaNPC/FortuneTellerNPC/NecromancerNPC kinds are data now
+		// (mobsDesc/*.json) - classes deleted, kinds must never resolve to java.
+		// InquirerNPC/SociologistNPC kinds deleted entirely (dead promo stubs,
+		// sprites kept).
+		registerMobClass(ServiceManNPC.class);
+		// PlagueDoctorNPC kind is data now (mobsDesc/PlagueDoctorNPC.json);
+		// in-game doctor = lua PlagueDoctor kind, the java NPC class is deleted.
+		// Ghost/WandMaker/Imp/CagedKobold/Blacksmith/ScarecrowNPC/AzuterronNPC
+		// and the Shopkeeper trio kinds are data now (mobsDesc/*.json, batch
+		// 16c) - java classes deleted, kinds must never resolve to java.
+		// Deathling kind is data too (mobsDesc/Deathling.json, batch 17c-2b).
+
+		// MirrorImage kind is data now (mobsDesc/MirrorImage.json, batch 17d-5)
+		// - java class deleted, kind must never resolve to java.
+		// Sheep kind is data too (mobsDesc/Sheep.json, batch 17d-5), the java
+		// WandOfFlock.Sheep nested class is deleted.
+	}
+
+	// legacy-mod kind aliases: kinds that existed only as compatibility shims
+	private static String resolveAlias(String kind) {
+		if (ELEMENTAL.equals(kind)) {
+			return FIRE_ELEMENTAL;
+		}
+		return kind;
+	}
+
+	@Contract(pure = true)
+	public static boolean hasMob(String mobClass) {
+		mobClass = resolveAlias(mobClass);
+
+		if(Dungeon.isChallenged(Challenges.NO_ARMOR) && mobClass.equals(ARMORED_STATUE)) {
+			return false;
+		}
+
+		if(Dungeon.isChallenged(Challenges.NO_WEAPON) && mobClass.equals(STATUE)) {
+			return false;
+		}
+
+		return mMobsList.containsKey(mobClass);
+	}
+
+	@NotNull
+	public static Mob mobByName(String selectedMobClass) {
+
+		selectedMobClass = resolveAlias(selectedMobClass);
+
+		try {
+			Class<? extends Mob> mobClass = mMobsList.get(selectedMobClass);
+
+			if (mobClass!=null && mobClass != Mob.class) {
+				return mobClass.newInstance();
+			} else {
+				return new Mob(selectedMobClass);
+			}
+		} catch (Exception e) {
+			throw new TrackedRuntimeException(selectedMobClass,e);
+		}
+	}
+
+	/**
+	 * Gated resolver for save-restore: null unless the kind is registered or
+	 * has a data def. Never constructs a def-less data mob from a bare kind.
+	 */
+	@Nullable
+	public static Mob tryByName(String kind) {
+		if (!hasMob(kind)) {
+			return null;
+		}
+		return mobByName(kind);
+	}
+
+	@NotNull
+	public static Mob createMob(String selectedMobClass, String jsonDesc) throws JSONException, IllegalAccessException, InstantiationException {
+		var mob = mobByName(selectedMobClass);
+		mob.fromJson(JsonHelper.readJsonFromString(jsonDesc));
+		return mob;
+	}
+
+	public static Image avatar(String kind)  {
+		return MobFactory.mobByName(kind).newSprite().avatar();
+	}
+
+	public static List<Mob> allMobs() {
+		List<Mob> mobs = new ArrayList<>();
+
+		for(String mobClass:mMobsList.keySet()) {
+			GLog.debug("Spawning: %s",mobClass);
+			mobs.add(mobByName(mobClass));
+		}
+
+		return mobs;
+	}
+
+	public static Set<String> getAllMobNames() {
+		return new HashSet<>(mMobsList.keySet());
+	}
+}

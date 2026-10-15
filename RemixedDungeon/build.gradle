@@ -1,0 +1,241 @@
+apply plugin: 'com.android.application'
+
+ext.getApiField = { name ->
+    def stringsFile = "RemixedDungeon/src/main/res/values/strings_api_signature.xml"
+    return new XmlParser().parse(stringsFile).string.find { it.@name.equals name }.text()
+}
+
+def jks_keyAlias    = System.getenv('jks_keyAlias') ? System.getenv('jks_keyAlias') : 'testKey'
+def jks_keyPassword = System.getenv('jks_keyPassword') ? System.getenv('jks_keyPassword') : '123456'
+def jks_storePassword = System.getenv('jks_storePassword') ? System.getenv('jks_storePassword') : '123456'
+def jks_storePath = System.getenv('jks_storePath')  ? System.getenv('jks_storePath') : 'testKey/test.jks'
+
+// Load version information from shared properties file
+def versionPropsFile = file("../version.properties")
+def versionProps = new Properties()
+versionPropsFile.withInputStream { versionProps.load(it) }
+
+android {
+
+    signingConfigs {
+        release {
+            keyAlias jks_keyAlias
+            keyPassword jks_keyPassword
+            storeFile file(jks_storePath)
+            storePassword jks_storePassword
+        }
+        debug {
+            keyAlias jks_keyAlias
+            keyPassword jks_keyPassword
+            storeFile file(jks_storePath)
+            storePassword jks_storePassword
+        }
+    }
+
+    defaultConfig {
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders = ["admob_app_id":getApiField("admob_app_id")]
+
+        applicationId "com.nyrds.pixeldungeon.ml"
+        versionCode versionProps['VERSION_CODE'].toInteger()
+        versionName versionProps['VERSION_NAME']
+        targetSdkVersion 36
+        compileSdkVersion 36
+        minSdkVersion 23
+
+        // Enabling multidex support.
+        multiDexEnabled true
+
+        // saves live in the app files dir root on android; desktop/html use ./saves/
+        buildConfigField "String", "SAVES_PATH", '"./"'
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+            minifyEnabled false
+            manifestPlaceholders["crashlyticsCollectionEnabled"] = "true"
+            manifestPlaceholders["performanceCollectionDeactivated"] = "false"
+        }
+        debug {
+            debuggable true
+            signingConfig signingConfigs.debug
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+            signingConfig signingConfigs.release
+            manifestPlaceholders["crashlyticsCollectionEnabled"] = "false"
+            manifestPlaceholders["performanceCollectionDeactivated"] = "true"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility "10"
+        targetCompatibility "10"
+        coreLibraryDesugaringEnabled true
+    }
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/MANIFEST.MF']
+        }
+    }
+
+
+    flavorDimensions "platform","market"
+
+    productFlavors {
+        googlePlay {
+            dimension "market"
+            versionCode defaultConfig.versionCode + 10000
+            // appodeal 4.2+ requires API 24; ads were API 24+ only anyway (AppodealAdapter.usable)
+            minSdkVersion 24
+        }
+
+        ruStore {
+            minSdkVersion 23
+            dimension "market"
+        }
+
+        fdroid {
+            dimension "market"
+        }
+/*
+        huawei {
+            minSdkVersion 19
+            dimension "market"
+            applicationIdSuffix ".huawei"
+        }
+*/
+        android {
+            dimension "platform"
+
+        }
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'src/android/AndroidManifest.xml'
+            //java.srcDirs = ['src/android/java']
+            //res.srcDirs = ['src/android/res'] # need to sync transifex first
+        }
+    }
+    androidResources {
+        noCompress 'mp3', 'ogg'
+    }
+    namespace 'com.nyrds.pixeldungeon.ml'
+    lint {
+        abortOnError false
+    }
+    buildFeatures {
+        buildConfig true
+    }
+
+}
+
+
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+
+    implementation project(':annotation')
+
+    annotationProcessor project(':processor')
+
+    implementation project(':luaj')
+    implementation 'org.hjson:hjson:3.1.0'
+    implementation 'commons-io:commons-io:2.6' //don't upgrade will cause runtime crash on old devices
+    implementation 'org.jetbrains:annotations:26.0.2-1'
+    implementation  'androidx.appcompat:appcompat:1.6.1' //don't upgrade will break build
+
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+
+
+    androidImplementation 'androidx.documentfile:documentfile:1.0.1'
+    androidImplementation 'com.google.guava:guava:31.1-android'
+    androidImplementation 'androidx.multidex:multidex:2.0.1'
+
+
+    googlePlayImplementation 'com.google.android.ads.consent:consent-library:1.0.8'
+
+
+    // caveman: appodeal 4.x = core + explicit opt-in adapters, versions track
+    // the network SDKs. amazon adapter deliberately absent: aps-sdk 11.x
+    // DTBAdActivity NPEs in onCreate on missing ad_state extra, fix exists only
+    // in APS 12 which only the 4.x amazon adapter line pulls - reintroduce
+    // adapters:amazon only when its aps-sdk dep is 12.x
+    googlePlayImplementation 'com.appodeal.ads.sdk:core:4.3.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:admob:25.4.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:applovin:13.6.4.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:applovin_max:13.6.4.1'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:bidmachine:3.8.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:bidon:0.16.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:bigo_ads:6.1.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:dt_exchange:8.4.7.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:iab:1.8.1.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:inmobi:11.4.1.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:ironsource:9.6.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:mintegral:17.1.81.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:mobilefuse:1.12.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:moloco:4.3.1.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:ogury:6.2.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:pangle:7.7.0.2.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:pubmatic:4.10.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:sentry_analytics:8.56.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:smaato:22.7.2.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:unity_ads:4.20.0.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:verve:3.7.1.0'
+    googlePlayImplementation 'com.appodeal.ads.sdk.adapters:vungle:7.7.7.0'
+
+    // caveman: VK Ads (ex.myTarget) rides Yandex mediation only. Adapter needs
+    // mobileads >=8.5.0, tracks mytarget-sdk 5.51.x. Appodeal my_target adapter
+    // removed - one VK mediation path, don't reintroduce it
+    googlePlayImplementation 'com.yandex.android:mobileads:8.5.0'
+    googlePlayImplementation 'com.yandex.ads.mediation:mobileads-mytarget:5.51.2.1'
+
+    ruStoreImplementation 'com.yandex.android:mobileads:8.5.0'
+    ruStoreImplementation 'com.yandex.ads.mediation:mobileads-mytarget:5.51.2.1'
+    ruStoreImplementation 'ru.rustore.sdk:billingclient:9.1.0'
+
+
+
+    googlePlayImplementation 'com.google.android.gms:play-services-base:18.9.0'
+    googlePlayImplementation 'com.google.android.gms:play-services-auth:21.4.0'
+    googlePlayImplementation "com.google.android.gms:play-services-games-v2:21.0.0"
+    googlePlayImplementation 'com.google.android.gms:play-services-ads:25.4.0'
+
+
+    googlePlayImplementation 'com.android.billingclient:billing:8.0.0'
+
+    googlePlayImplementation platform('com.google.firebase:firebase-bom:34.5.0')
+
+    googlePlayImplementation 'com.google.firebase:firebase-analytics'
+    googlePlayImplementation 'com.google.firebase:firebase-crashlytics'
+    googlePlayImplementation 'com.google.firebase:firebase-perf'
+    googlePlayImplementation 'com.google.firebase:firebase-config'
+/*
+    huaweiImplementation 'com.huawei.hms:ads-lite:13.4.30.301'
+    huaweiImplementation 'com.huawei.hms:hianalytics:5.0.0.300'
+    huaweiImplementation 'com.huawei.agconnect:agconnect-crash:1.4.1.300'
+ */
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.10.3'
+    testImplementation 'androidx.test:core:1.5.0'
+}
+
+if (getGradle().getStartParameter().getTaskRequests()
+        .toString().contains("GooglePlay")) {
+    apply plugin: 'com.google.firebase.crashlytics'
+    apply plugin: 'com.google.gms.google-services'
+    apply plugin: 'com.google.firebase.firebase-perf'
+}
+
+/*
+if (getGradle().getStartParameter().getTaskRequests()
+        .toString().contains("Huawei")) {
+    apply plugin: 'com.huawei.agconnect'
+}
+*/

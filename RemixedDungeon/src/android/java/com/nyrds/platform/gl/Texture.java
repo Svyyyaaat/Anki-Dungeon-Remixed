@@ -1,0 +1,370 @@
+package com.nyrds.platform.gl;
+
+import android.opengl.GLES20;
+import android.opengl.GLUtils;
+import com.nyrds.platform.EventCollector;
+import com.nyrds.platform.gfx.BitmapData;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
+
+public class Texture {
+
+    public static final int NEAREST = GLES20.GL_NEAREST;
+    public static final int LINEAR = GLES20.GL_LINEAR;
+    public static final int REPEAT = GLES20.GL_REPEAT;
+    public static final int MIRROR = GLES20.GL_MIRRORED_REPEAT;
+    public static final int CLAMP = GLES20.GL_CLAMP_TO_EDGE;
+
+    protected int id = -1; // -1 indicates that the texture has not been generated yet
+
+    // Static flag to control whether bitmap data should be disposed after upload
+    private static boolean autoDisposeBitmapData = true;
+
+    // GL id lifecycle counters for leak debugging. Visible via the debug web
+    // server: luajava.bindClass("com.nyrds.platform.gl.Texture"):glStats()
+    // gen-del == live GL texture ids (grows forever => a delete() path is missed).
+    private static volatile int genCount = 0;
+    private static volatile int delCount = 0;
+
+    // live GL id -> gen-site stack, insertion(=age)-ordered; leakProbe() dumps
+    // the oldest live ids, which is where a missed delete() shows up first
+    private static final java.util.Map<Integer, String> liveIds = new java.util.LinkedHashMap<>();
+
+    // id -> owner alive? aggregated in leakProbe(): owners GC'd while their GL
+    // id is still live = objects discarded without destroy(); owners alive but
+    // having survived a cache clear = retained across scenes
+    private static final java.util.Map<Integer, java.lang.ref.WeakReference<Texture>> owners =
+            new java.util.LinkedHashMap<>();
+
+    // epoch = number of TextureCache.clear() calls; ids stamped with an older
+    // epoch than the current one have survived a full cache clear => leaked
+    private static volatile int cacheClears = 0;
+
+    public static void noteCacheClear() {
+        cacheClears++;
+        evictIdleIds();
+    }
+
+    // textures not re-bound for 3 cache-clear epochs are idle orphans (owner
+    // alive but no longer drawing them): delete their GL id. If the owner ever
+    // draws again, bind() regenerates - correctness preserved.
+    private static void evictIdleIds() {
+        java.util.Iterator<java.util.Map.Entry<Integer, String>> it = liveIds.entrySet().iterator();
+        while (it.hasNext()) {
+            java.util.Map.Entry<Integer, String> e = it.next();
+            int epoch = Integer.parseInt(e.getValue().substring(0, e.getValue().indexOf('|')));
+            if (cacheClears - epoch >= 3) {
+                GLES20.glDeleteTextures(1, new int[]{e.getKey()}, 0);
+                delCount++;
+                it.remove();
+            }
+        }
+    }
+
+    // GL ids of textures garbage-collected without delete(). TextureCache.clear
+    // releases ownership of textures that live sprites may still re-bind; when
+    // such a sprite later dies its texture is unreachable unmanaged, so nothing
+    // would ever glDeleteTextures its id. The queue is drained on the GL thread
+    // at the next bind() - a missed delete costs one frame, not forever.
+    private static final java.util.Queue<Integer> orphanedIds = new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    @Override
+    protected void finalize() throws Throwable {
+        if (id != -1) {
+            orphanedIds.add(id);
+            id = -1;
+        }
+        super.finalize();
+    }
+
+    private static void drainOrphanedIds() {
+        Integer orphan;
+        while ((orphan = orphanedIds.poll()) != null) {
+            if (liveIds.remove(orphan) != null) {
+                GLES20.glDeleteTextures(1, new int[]{orphan}, 0);
+                delCount++;
+            }
+        }
+    }
+
+    public static String glStats() {
+        return "gen=" + genCount + " del=" + delCount + " live=" + (genCount - delCount);
+    }
+
+    public boolean debugHasLiveGlId() {
+        return id != -1;
+    }
+
+    public static String leakProbe() {
+        java.util.Map<String, Integer> bySite = new java.util.LinkedHashMap<>();
+        int leaked = 0;
+        for (java.util.Map.Entry<Integer, String> e : liveIds.entrySet()) {
+            String entry = e.getValue();
+            int sep = entry.indexOf('|');
+            int epoch = Integer.parseInt(entry.substring(0, sep));
+            if (cacheClears - epoch < 3) {
+                continue; // young enough to still be pending normal reuse
+            }
+            leaked++;
+            int sep2 = entry.indexOf('|', sep + 1);
+            String dims = entry.substring(sep + 1, sep2);
+            int sep3 = entry.indexOf('|', sep2 + 1);
+
+            String createdAt = entry.substring(sep2 + 1, sep3);
+
+            String site = entry.substring(sep3 + 1);
+            java.lang.ref.WeakReference<Texture> ownerRef = owners.get(e.getKey());
+            Texture owner = ownerRef == null ? null : ownerRef.get();
+            String key = (owner == null ? "DEAD created-by: " + createdAt : owner.getClass().getSimpleName()) + " "
+                    + dims + " @" + site.substring(0, Math.min(site.length(), 120));
+            Integer c = bySite.get(key);
+            bySite.put(key, c == null ? 1 : c + 1);
+        }
+        StringBuilder sb = new StringBuilder("live=").append(liveIds.size())
+                .append(" leaked=").append(leaked).append(';');
+        int n = 0;
+        for (java.util.Map.Entry<String, Integer> e : bySite.entrySet()) {
+            if (n++ >= 12) break;
+            sb.append("\n").append(e.getValue()).append("x: ").append(e.getKey());
+        }
+        return sb.toString();
+    }
+
+    protected BitmapData bitmapData;
+    private int minFilter = LINEAR;
+    private int maxFilter = LINEAR;
+    private int wrapS = CLAMP;
+    private int wrapT = CLAMP;
+    private int[] pixels;
+    protected int width;
+    protected int height;
+    private byte[] bytePixels;
+    private boolean dataDirty = false;
+
+    // creation-site stack of this texture: identifies who constructed a
+
+    // texture whose GL id leaked (string survives the owner's GC)
+
+    private final String createdAt = captureCreationSite();
+
+
+    private static String captureCreationSite() {
+
+    	StackTraceElement[] st = new Throwable().getStackTrace();
+
+    	StringBuilder sb = new StringBuilder();
+
+    	for (int i = 2; i < Math.min(st.length, 8); i++) {
+
+    		sb.append(st[i].getClassName()).append('.').append(st[i].getMethodName())
+
+    				.append(':').append(st[i].getLineNumber()).append(" <- ");
+
+    	}
+
+    	return sb.toString();
+
+    }
+
+
+    public Texture() {
+        // Texture generation is deferred until bind() is called
+    }
+
+    public static void activate(int index) {
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + index);
+    }
+
+    public void bind() {
+        drainOrphanedIds();
+        if (id == -1) {
+            int[] ids = new int[1];
+            GLES20.glGenTextures(1, ids, 0);
+            id = ids[0];
+            genCount++;
+            StackTraceElement[] st = new Throwable().getStackTrace();
+            StringBuilder sb = new StringBuilder();
+            for (int i = 1; i < Math.min(st.length, 11); i++) {
+                sb.append(st[i].getClassName()).append('.').append(st[i].getMethodName())
+                  .append(':').append(st[i].getLineNumber()).append(" <- ");
+            }
+            liveIds.put(id, cacheClears + "|" + width + "x" + height + "|" + createdAt + "|" + sb);
+            owners.put(id, new java.lang.ref.WeakReference<>(this));
+
+            if (id == 0) {
+                throw new AssertionError();
+            }
+        }
+
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, id);
+
+        // Apply stored parameters and upload pixel data if necessary
+        applyParameters();
+        uploadPixelData();
+    }
+
+    private void applyParameters() {
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, minFilter);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, maxFilter);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, wrapS);
+        GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, wrapT);
+    }
+
+    private void uploadPixelData() {
+        if (dataDirty) {
+            if (bitmapData != null && bitmapData.bmp != null) {
+                if(bitmapData.bmp==null) {
+                    EventCollector.logException();
+                }
+                GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmapData.bmp, 0);
+                if (autoDisposeBitmapData) {
+                    bitmapData.dispose(); // Dispose the bitmap data after uploading
+                }
+                bitmapData = null; // Clear the reference to avoid re-uploading
+            } else if (pixels != null) {
+                uploadPixels(pixels, width, height);
+                pixels = null; // Clear the pixel data after uploading
+            } else if (bytePixels != null) {
+                uploadBytes(bytePixels, width, height);
+                bytePixels = null; // Clear the byte pixel data after uploading
+            }
+            dataDirty = false;
+        }
+    }
+
+    private void uploadPixels(int[] pixels, int w, int h) {
+        IntBuffer imageBuffer = ByteBuffer
+                .allocateDirect(w * h * 4)
+                .order(ByteOrder.nativeOrder())
+                .asIntBuffer();
+        imageBuffer.put(pixels);
+        imageBuffer.position(0);
+
+        GLES20.glTexImage2D(
+                GLES20.GL_TEXTURE_2D,
+                0,
+                GLES20.GL_RGBA,
+                w,
+                h,
+                0,
+                GLES20.GL_RGBA,
+                GLES20.GL_UNSIGNED_BYTE,
+                imageBuffer);
+    }
+
+    private void uploadBytes(byte[] pixels, int w, int h) {
+        ByteBuffer imageBuffer = ByteBuffer
+                .allocateDirect(w * h)
+                .order(ByteOrder.nativeOrder());
+        imageBuffer.put(pixels);
+        imageBuffer.position(0);
+
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1);
+
+        GLES20.glTexImage2D(
+                GLES20.GL_TEXTURE_2D,
+                0,
+                GLES20.GL_ALPHA,
+                w,
+                h,
+                0,
+                GLES20.GL_ALPHA,
+                GLES20.GL_UNSIGNED_BYTE,
+                imageBuffer);
+    }
+
+    public void filter(int minMode, int maxMode) {
+        this.minFilter = minMode;
+        this.maxFilter = maxMode;
+    }
+
+    public void wrap(int s, int t) {
+        this.wrapS = s;
+        this.wrapT = t;
+    }
+
+    public void delete() {
+        if (id != -1) {
+            GLES20.glDeleteTextures(1, new int[]{id}, 0);
+            liveIds.remove(id);
+            owners.remove(id);
+            id = -1;
+            delCount++;
+            dataDirty = true; // Mark data as dirty to regenerate on next bind()
+        }
+    }
+
+    /**
+     * Terminal release of the upload bitmap. Textures created but never bound
+     * keep their bitmap data here forever otherwise. Call only when the texture
+     * is being discarded (e.g. TextureCache.clear), not on reversible delete().
+     */
+    public void releaseBitmapData() {
+        if (bitmapData != null) {
+            if (autoDisposeBitmapData) {
+                bitmapData.dispose();
+            }
+            bitmapData = null;
+        }
+    }
+
+    public void bitmap(BitmapData bitmap) {
+        this.bitmapData = bitmap;
+
+        if(bitmap.bmp==null){
+            EventCollector.logException();
+        }
+
+        this.dataDirty = true;
+    }
+
+    /**
+     * Set whether bitmap data should be automatically disposed after being uploaded as a texture
+     * @param autoDispose True to dispose after upload (default), false to preserve bitmap data
+     */
+    public static void setAutoDisposeBitmapData(boolean autoDispose) {
+        autoDisposeBitmapData = autoDispose;
+    }
+
+    /**
+     * Get whether bitmap data is automatically disposed after being uploaded as a texture
+     * @return True if bitmap data is disposed after upload, false otherwise
+     */
+    public static boolean getAutoDisposeBitmapData() {
+        return autoDisposeBitmapData;
+    }
+
+    public void pixels(int w, int h, int[] pixels) {
+        this.width = w;
+        this.height = h;
+        this.pixels = pixels;
+        this.bytePixels = null; // Clear byte pixel data
+        this.bitmapData = null; // Clear bitmap data
+        this.dataDirty = true;
+    }
+
+    /**
+     * Get the bitmap data associated with this texture
+     * @return The bitmap data, or null if it's not available
+     */
+    public BitmapData getBitmapData() {
+        return this.bitmapData;
+    }
+
+    /**
+     * Get the width of this texture
+     * @return The width of the texture
+     */
+    public int getWidth() {
+        return this.width;
+    }
+
+    /**
+     * Get the height of this texture
+     * @return The height of the texture
+     */
+    public int getHeight() {
+        return this.height;
+    }
+}

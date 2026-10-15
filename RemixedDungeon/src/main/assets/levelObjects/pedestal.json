@@ -1,0 +1,17 @@
+{
+  "kind":"CustomObject",
+
+  "script": "pedestal",
+  "layer" : 0,
+  "appearance": {
+    "desc": {
+      "desc": "Level_TileDescPedestal",
+      "name": "Level_TilePedestal",
+      "nonPassable" : false
+    },
+    "sprite":{
+      "textureFile": "levelObjects/objects.png",
+      "imageIndex" : 0
+    }
+  }
+}

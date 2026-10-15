@@ -1,0 +1,15 @@
+{
+   "defenseSkill"  :3,
+   "attackSkill"   :8,
+   "baseSpeed"	   :0,
+   "attackDelay"   :1,
+   "ht"            :5,
+   "spriteDesc"    :"spritesDesc/InnKeeperNPC.json",
+   "scriptFile"    :"scripts/npc/Innkeeper",
+   "friendly"      :true,
+   "movable"       :false,
+   "aiState"       :"Passive",
+   "fraction"      :"NEUTRAL",
+   "immortal"      :true,
+   "isHumanoid"    :true
+}

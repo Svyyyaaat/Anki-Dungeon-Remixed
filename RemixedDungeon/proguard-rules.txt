@@ -1,0 +1,7 @@
+-keep class com.nyrds.** { *; }
+-keep class com.watabou.** { *; }
+-keep class org.luaj.** { *; }
+
+-assumenosideeffects class com.watabou.pixeldungeon.utils.GLog {
+    public static *** debug(...);
+}

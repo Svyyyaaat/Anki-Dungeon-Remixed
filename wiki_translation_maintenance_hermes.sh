@@ -1,0 +1,255 @@
+#!/bin/bash
+
+# wiki_translation_maintenance_hermes.sh — Hermes variant of wiki_translation_maintenance.sh
+# Same loop as the qwen-based original, but runs tasks via `hermes chat -q` (non-interactive).
+#
+# Differences from the qwen version:
+#   - Uses hermes chat -q (single query, non-interactive) with --yolo for unattended runs
+#   - Prompts passed via --query-file to avoid shell-quoting issues with nested quotes
+#   - Wall-clock budget (--run-budget 3600 = 1h) replaces `timeout 300m`
+#   - Toolsets restricted to what the tasks need (no delegation: free-model
+#     children hang on model calls and the parent loses the whole run)
+#   - A failed run is retried once with --resume latest
+#   - Uncommitted work is never wiped: a failed run's partial edits are
+#     stashed before the next iteration; foreign dirt is first given to a
+#     scoped hermes recovery run that aligns submodules with master state,
+#     and only dirt it cannot resolve skips the iteration
+#   - Every LEARN_EVERY iterations, a learning run lets hermes update its own
+#     skill/memory files from observed maintenance history, including the
+#     session transcripts stored in its state.db (read-only)
+#   - Language list includes recently added locales (nl, vi, ar, he)
+
+set -u
+
+# Single-instance guard: a second loop would interleave commits and fight over the git index.
+exec 9>"${TMPDIR:-/tmp}/hermes_maintenance.lock"
+flock -n 9 || { echo "another maintenance loop instance holds ${TMPDIR:-/tmp}/hermes_maintenance.lock; exiting" >&2; exit 0; }
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROMPT_DIR="$(mktemp -d /tmp/hermes_maint.XXXXXX)"
+trap 'rm -rf "$PROMPT_DIR"' EXIT
+NEEDS_HUMAN_FLAG="$HOME/.hermes/NEEDS-HUMAN-maintenance-stalled"   # written while stalled on unresolvable dirt; cleared automatically on recovery
+
+RUN_BUDGET="${RUN_BUDGET:-3600}"    # seconds per task run; generous for a ~2-min task, tight enough to keep the hourly cadence
+TOOLSETS="${TOOLSETS:-terminal,file,web}"
+SLEEP_SECONDS="${SLEEP_SECONDS:-3600}"
+LOG_FILE="${LOG_FILE:-$HOME/.hermes/logs/hermes_maintenance.log}"   # outside the repo: must survive repo-side resets and cleans
+LEARN_EVERY="${LEARN_EVERY:-12}"    # run a skill/memory consolidation every N maintenance iterations
+
+WIKI_LANGS="en, ru, es, fr, de, it, pl, pt-rBR, ja, ko, zh-rCN, zh-rTW, uk, hu, tr, el, in, ms, nl, vi, ar, he"
+
+cat > "$PROMPT_DIR/wiki.txt" <<EOF
+For tool usage in this task: shell commands run through the \`terminal\` tool (there is no \`bash\` tool); file edits via \`patch\` always require the explicit \`path\` argument.
+Read @docs/WIKI_DOCUMENTATION.md, pull repo master, pick 5 random wiki pages using ./pick_random_wiki_pages.sh (script lives in the repo root, not tools/), analyze them for compliance with wiki standards, identify issues like missing images, invalid headers, incorrect links, improper formatting, run the dokuwiki linter on them (python3 tools/py-tools/dokuwiki_linter.py <page.txt> — exactly one path per invocation: a page file or a pages directory, nothing else), fix identified issues based on documentation standards, verify all links point to existing lowercase files (from the repo root run: python3 tools/py-tools/find_red_links.py --output red-links — never pass --dir or any other flag, it expects the wiki-data root; --output is a report type, not a file path — the report goes to stdout), ensure proper image references exist. Treat red links on your selected pages as a fix queue, not a statistic: correct misspelled or mis-namespaced targets; create missing pages for real game entities and mechanics (correct type-suffixed naming per WIKI_DOCUMENTATION.md, facts grounded via tools/find_entity_usage.py, only images that exist); for translation-namespace gaps (ru:, mr:, cn:, pt-rBR, ...) where the en: source page exists, fill the gap by translating that source page. Never quote the global red-link count as an achievement — the only numbers that matter in your summary are the red links your five pages emitted before and after your fixes. Lint every selected page exactly once — a \`for\` loop over the page list with one linter invocation per page is the preferred way — and quote each page's one-line linter verdict in your final summary so coverage is verifiable. Verify pages semantically, not only syntactically: for every reviewed page that describes a game entity (mob, item, spell, npc, buff, level object), run tools/find_entity_usage.py for that entity's name and cross-check what the page claims (stats, mechanics, drops, behavior, image) against the current implementation — entities are migrating from Java classes to json+lua data files, so ground against current data; report in your final summary which entities you grounded and whether the page facts matched. For mr: namespace pages, and whenever entity facts are changed on any page, this grounding is mandatory before committing. Also check the reviewed pages across all supported languages (${WIKI_LANGS}) for consistency with game translations. Build coverage incrementally: a missing locale counterpart of a page you reviewed is your next work item — translate the en: source into one missing locale per run (prefer the languages with the largest wiki gaps; type-suffixed naming per locale namespace, facts grounded via tools/find_entity_usage.py, only images that exist, tone per WIKI_DOCUMENTATION.md); one page per run, done well beats done wide. And when find_entity_usage.py shows an implementation change (Java to json+lua migration, updated stats or mechanics), refresh the stale facts in every existing locale version of that page, not only en:. Commit your changes to wiki-data and push it; don't commit or push into the main repo beyond what the task requires. Focus on maintaining consistency with wiki documentation standards.
+EOF
+
+cat > "$PROMPT_DIR/translation.txt" <<EOF
+For tool usage in this task: shell commands run through the \`terminal\` tool (there is no \`bash\` tool); file edits via \`patch\` always require the explicit \`path\` argument.
+Read @docs/TRANSLATION_TASK.md, pull repo master, identify a few random missing strings in random languages (use tools/select_random_missing_string.py — note that nl and vi currently have large gaps), find their context using tools/find_string_usage.py, translate them properly based on the English reference and code context, add translations to the appropriate strings_all.xml files using tools/insert_translated_string.py, verify consistency with existing translations, run tools/validate_translations.py --auto-fix before committing, also select a few random strings and ensure consistency among all languages. Commit your changes and push. Focus on maintaining consistency with existing translations, proper grammar, cultural appropriateness for target languages, and proper string formatting following Android XML standards.
+EOF
+
+cat > "$PROMPT_DIR/learn.txt" <<EOF
+Periodic self-maintenance for the Remixed Dungeon automation you operate.
+
+Review what actually happened in recent unattended maintenance runs:
+- git -C /home/nyrds/remixed-dungeon log (recent commits, including the wiki-data submodule)
+- /home/nyrds/.hermes/logs/hermes_maintenance.log (per-iteration outcomes, failures, retries)
+- /home/nyrds/remixed-dungeon/wiki_translation_maintenance_hermes.sh (the loop script — source of truth for current parameters)
+- \$HOME/.hermes/NEEDS-HUMAN-maintenance-stalled — if this file exists, the loop is stalled on unresolvable dirt; lead your report with what it says and the current repo dirt status
+
+Mine the session transcripts for what the outcome log cannot show:
+- Full conversation transcripts live in /home/nyrds/.hermes/state.db (SQLite): table sessions (id, title, started_at, cwd) and table messages (session_id, role, content, tool_name, finish_reason, timestamp). Open it READ-ONLY via python3's sqlite3 module with a 'file:...?mode=ro' URI — there is no sqlite3 CLI on this node.
+- Scope: sessions with cwd='/home/nyrds/remixed-dungeon' started in the last 24 hours. Skim user prompts and assistant messages (truncate long content to ~500 chars per message) and note tool calls that failed or retried (error text, 'interrupted', patch-tool errors), repeated or wasted steps, validator failures, and how runs ended.
+- Learn from patterns, not one-offs: a hiccup that occurred once is noise; something recurring across sessions, or something that cost a run real time, is a pitfall worth recording. Cite session IDs as evidence.
+
+Reconcile your knowledge of the repo's tooling and structure:
+- Diff the real listings of tools/ and tools/py-tools/ against the tool section of your skill; record tools that are new, moved, or gone (cite the ls output).
+- Before repeating any claim in your skill that a tool is 'broken' or 'fails', re-run that tool and update or drop the claim — such claims go stale (find_red_links.py once did).
+- Refresh stale audit numbers (e.g. current missing-string counts per language from tools/check_missing_strings.py).
+- Record durable structural shifts that change how task facts are grounded (e.g. entities moving from Java classes to json+lua data files).
+
+Then bring your learned knowledge up to date:
+1. Update your skill at /home/nyrds/.hermes/skills/software-development/remixed-dungeon-maintenance/ (SKILL.md and references/) so every fact matches current reality: script parameters (RUN_BUDGET, TOOLSETS, LEARN_EVERY, retry-on-failure behavior), log location, tool paths, and any recurring pitfall visible in the log, git history, or transcripts. Fix wrong facts, add only durable reusable knowledge, keep it concise.
+2. Update your persistent memories in /home/nyrds/.hermes/memories/ the same way (e.g. current model/fallback configuration, node-specific facts). When you refresh an entry, also refresh its 'as of' date.
+
+Constraints: do NOT modify anything under /home/nyrds/remixed-dungeon; never write to /home/nyrds/.hermes/state.db or anything under /home/nyrds/.hermes except your own skill and memories directories; do not commit or push anything; do not invent problems that the evidence does not support.
+EOF
+
+cat > "$PROMPT_DIR/recovery.txt" <<EOF
+The automated maintenance loop found uncommitted changes in this repo that its own runs did not create. Your job: resolve them by following master state, under this policy and no other.
+
+Policy:
+- Submodule drift: if a submodule's checked-out commit differs from the commit master records for it, align that checkout to the recorded commit with: git submodule update --init <paths>. The recorded pointer is the pushed intent — follow it.
+- Untracked files in the main repo that are obviously generated artifacts of the maintenance tooling itself (for example the red-links report) may be deleted.
+- Do NOT touch anything else: no file edits, no stash, no commit, no push, no branch changes, no history rewrites, no pulls.
+- If dirt remains that this policy does not cover, or anything is ambiguous (uncommitted changes inside a submodule, unpushed local submodule commits, a submodule update that fails), leave it exactly as it is and explain what a human must decide.
+
+End with a one-line verdict: 'RESOLVED' (worktree clean) or 'NEEDS-HUMAN: <reason>'.
+EOF
+
+run_task() {
+    local prompt_file="$1"
+    shift
+    hermes chat \
+        --query-file "$prompt_file" \
+        --in "$REPO_ROOT" \
+        --toolsets "$TOOLSETS" \
+        --skills remixed-dungeon-maintenance \
+        --run-budget "$RUN_BUDGET" \
+        --yolo \
+        --quiet \
+        "$@"
+}
+
+run_learning() {
+    hermes chat \
+        --query-file "$PROMPT_DIR/learn.txt" \
+        --in "$HOME" \
+        --toolsets terminal,file \
+        --run-budget "$RUN_BUDGET" \
+        --yolo \
+        --quiet
+}
+
+run_recovery() {
+    hermes chat \
+        --query-file "$PROMPT_DIR/recovery.txt" \
+        --in "$REPO_ROOT" \
+        --toolsets terminal \
+        --run-budget "$RUN_BUDGET" \
+        --yolo \
+        --quiet
+}
+
+log() {
+    echo "[$(date)] $*" | tee -a "$LOG_FILE"
+}
+
+stash_partial_work() {
+    # $1 = repo dir, $2 = human-readable label
+    git -C "$1" stash push -u -m "hermes-maint: partial work from failed run ($2), $(date '+%F %T')" >/dev/null \
+        && log "Stashed partial work in $2 left by the failed run (recover with: git -C '$1' stash list)" \
+        || log "WARNING: failed to stash partial work in $2"
+}
+
+echo "Hermes maintenance script that randomly chooses between wiki and translation tasks"
+echo "Run budget per task: ${RUN_BUDGET}s, sleep between iterations: ${SLEEP_SECONDS}s"
+echo "Log file: $LOG_FILE"
+echo "Press Ctrl+C to stop."
+echo
+
+LEFTOVER_POSSIBLE=0
+FOREIGN_DIRT_TRIES=0
+ITERATION=0
+while true; do
+    TASK_CHOICE=$((RANDOM % 2))
+
+    # Never wipe uncommitted work. Dirt left by a failed run is stashed
+    # (recoverable) so the loop can proceed. Foreign dirt is first given to
+    # a scoped recovery run (align submodules with master state); only dirt
+    # it cannot resolve skips the iteration, untouched.
+    if [ "$LEFTOVER_POSSIBLE" -eq 1 ]; then
+        [ -n "$(git -C "$REPO_ROOT/wiki-data" status --porcelain 2>/dev/null)" ] && stash_partial_work "$REPO_ROOT/wiki-data" "wiki-data"
+        [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ] && stash_partial_work "$REPO_ROOT" "main repo"
+        LEFTOVER_POSSIBLE=0
+    elif [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
+        if [ "$FOREIGN_DIRT_TRIES" -lt 3 ]; then
+            FOREIGN_DIRT_TRIES=$((FOREIGN_DIRT_TRIES + 1))
+            log "Uncommitted changes that no failed run accounts for — dispatching recovery run (attempt $FOREIGN_DIRT_TRIES/3)"
+            run_recovery
+            if [ -z "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
+                log "Recovery run resolved the changes; resuming maintenance"
+                FOREIGN_DIRT_TRIES=0
+            else
+                log "Recovery run left changes unresolved — skipping this iteration to protect them"
+                sleep "$SLEEP_SECONDS"
+                continue
+            fi
+        else
+            printf 'Hermes maintenance is stalled since %s.\nUncommitted changes persist after 3 recovery attempts; iterations are being skipped to protect them.\nInspect: git -C %s status --porcelain (also inside wiki-data/)\nResolution is up to a human; clear this file when resolved: rm %s\n' "$(date -u '+%F %T UTC')" "$REPO_ROOT" "$NEEDS_HUMAN_FLAG" > "$NEEDS_HUMAN_FLAG"
+            log "WARNING: uncommitted changes persist after $FOREIGN_DIRT_TRIES recovery attempts — skipping this iteration to protect them (escalation marker: $NEEDS_HUMAN_FLAG)"
+            sleep "$SLEEP_SECONDS"
+            continue
+        fi
+    fi
+    FOREIGN_DIRT_TRIES=0
+    rm -f "$NEEDS_HUMAN_FLAG" 2>/dev/null || true
+
+    if [ $TASK_CHOICE -eq 0 ]; then
+        log "Running wiki maintenance via hermes"
+        PROMPT_FILE="$PROMPT_DIR/wiki.txt"
+        TASK_NAME="Wiki maintenance"
+    else
+        log "Running translation task via hermes"
+        PROMPT_FILE="$PROMPT_DIR/translation.txt"
+        TASK_NAME="Translation task"
+    fi
+
+    run_task "$PROMPT_FILE"
+    CMD_STATUS=$?
+
+    # Retry once by resuming the failed run's session so a run that died
+    # mid-task continues where it stopped instead of losing the work.
+    # --resume latest is safe here: hermes is not used manually on this node.
+    if [ $CMD_STATUS -ne 0 ]; then
+        log "$TASK_NAME failed with exit status: $CMD_STATUS; retrying once with --resume latest"
+        run_task "$PROMPT_FILE" --resume latest
+        CMD_STATUS=$?
+    fi
+
+    if [ $CMD_STATUS -ne 0 ]; then
+        log "$TASK_NAME failed with exit status: $CMD_STATUS (retry exhausted)"
+    else
+        log "$TASK_NAME completed successfully"
+
+        if [[ -n $(git -C "$REPO_ROOT" status --porcelain) ]]; then
+            log "Changes detected, committing..."
+
+            if [ $TASK_CHOICE -eq 0 ]; then
+                git -C "$REPO_ROOT" add wiki-data/
+                git -C "$REPO_ROOT" add RemixedDungeon/src/main/java/ 2>/dev/null || true
+                git -C "$REPO_ROOT" add tools/py-tools/ 2>/dev/null || true
+                git -C "$REPO_ROOT" add docs/ 2>/dev/null || true
+                COMMIT_MSG="Auto-wiki: Update wiki pages based on maintenance iteration"
+            else
+                git -C "$REPO_ROOT" add RemixedDungeon/src/main/res/values-*/strings_all.xml
+                COMMIT_MSG="Auto-translation: Add missing string translations"
+            fi
+
+            git -C "$REPO_ROOT" commit -m "$COMMIT_MSG
+
+Automated commit to $([ $TASK_CHOICE -eq 0 ] && echo 'update wiki pages' || echo 'add missing translations') identified during iteration."
+
+            if git -C "$REPO_ROOT" pull --rebase -q; then
+                if git -C "$REPO_ROOT" push origin HEAD; then
+                    log "$TASK_NAME changes committed and pushed successfully"
+                else
+                    log "Failed to push $([ $TASK_CHOICE -eq 0 ] && echo 'wiki' || echo 'translation') changes"
+                fi
+            else
+                log "Rebase against origin failed; leaving changes committed locally"
+            fi
+        else
+            log "No changes detected after $([ $TASK_CHOICE -eq 0 ] && echo 'wiki' || echo 'translation') iteration"
+        fi
+    fi
+
+    if [ $CMD_STATUS -ne 0 ] && [ -n "$(git -C "$REPO_ROOT" status --porcelain)" ]; then
+        LEFTOVER_POSSIBLE=1
+        log "Failed run left uncommitted changes; they will be stashed before the next iteration"
+    fi
+
+    ITERATION=$((ITERATION + 1))
+    if [ $((ITERATION % LEARN_EVERY)) -eq 0 ]; then
+        log "Running periodic learning task via hermes"
+        if run_learning; then
+            log "Learning task completed"
+        else
+            log "Learning task failed (non-fatal; continuing loop)"
+        fi
+    fi
+
+    log "Sleeping for ${SLEEP_SECONDS} seconds..."
+    sleep "$SLEEP_SECONDS"
+    log "Sleep period completed, restarting loop"
+done

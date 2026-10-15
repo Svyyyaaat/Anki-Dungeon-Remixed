@@ -1,0 +1,34 @@
+pluginManagement {
+    repositories {
+        mavenLocal() // Check your local Maven repository first
+        gradlePluginPortal() // Then check the Gradle Plugin Portal
+    }
+    // TeaVM stopped publishing releases to the Gradle Plugin Portal / their
+    // own repo after 0.13.x - releases live on Maven Central, marker-only.
+    // Map the plugin id onto the Maven artifact so it resolves from Central
+    // (served through the portal repo).
+    resolutionStrategy.eachPlugin {
+        if (requested.id.id == 'org.teavm') {
+            useModule("org.teavm:teavm-gradle-plugin:${requested.version}")
+        }
+    }
+}
+
+
+include ':processor', ':annotation', ':json_clone', ':luaj'
+
+// Example project-level settings.gradle
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        google()
+        maven {
+            url "https://artifactory-external.vkpartner.ru/artifactory/maven"
+        }
+        maven { url "https://artifactory.appodeal.com/appodeal/" }
+        maven { url 'https://developer.huawei.com/repo/' }
+    }
+}
+include ':RemixedDungeonHtml'

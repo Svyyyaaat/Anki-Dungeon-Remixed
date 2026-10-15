@@ -1,0 +1,1259 @@
+package com.watabou.pixeldungeon;
+
+import com.google.common.base.Optional;
+import com.nyrds.LuaInterface;
+import com.nyrds.lua.LuaEngine;
+import com.nyrds.pixeldungeon.ai.MobAi;
+import com.nyrds.pixeldungeon.ai.Wandering;
+import com.nyrds.pixeldungeon.game.GameLoop;
+import com.nyrds.pixeldungeon.game.GamePreferences;
+import com.nyrds.pixeldungeon.game.ModQuirks;
+import com.nyrds.pixeldungeon.items.Treasury;
+import com.nyrds.pixeldungeon.items.common.ItemFactory;
+import com.nyrds.pixeldungeon.items.common.Library;
+import com.nyrds.pixeldungeon.levels.IceCavesLevel;
+import com.nyrds.pixeldungeon.levels.NecroLevel;
+import com.nyrds.pixeldungeon.levels.objects.LevelObjectsFactory;
+import com.nyrds.pixeldungeon.mechanics.buffs.BuffFactory;
+import com.nyrds.pixeldungeon.mechanics.spells.SpellFactory;
+import com.nyrds.pixeldungeon.ml.BuildConfig;
+import com.nyrds.pixeldungeon.ml.R;
+import com.nyrds.pixeldungeon.mobs.common.MobFactory;
+import com.nyrds.pixeldungeon.utils.CharsList;
+import com.nyrds.pixeldungeon.utils.DungeonGenerator;
+import com.nyrds.pixeldungeon.utils.EntityIdSource;
+import com.nyrds.pixeldungeon.utils.ItemsList;
+import com.nyrds.pixeldungeon.utils.Position;
+import com.nyrds.platform.EventCollector;
+import com.nyrds.platform.game.Game;
+import com.nyrds.platform.storage.CommonPrefs;
+import com.nyrds.platform.storage.FileSystem;
+import com.nyrds.platform.storage.Preferences;
+import com.nyrds.platform.storage.SaveUtils;
+import com.nyrds.platform.util.Os;
+import com.nyrds.platform.util.StringsManager;
+import com.nyrds.platform.util.TrackedRuntimeException;
+import com.nyrds.util.ModdingBase;
+import com.nyrds.util.ModdingMode;
+import com.watabou.noosa.Scene;
+import com.watabou.pixeldungeon.Rankings.gameOver;
+import com.watabou.pixeldungeon.actors.Actor;
+import com.watabou.pixeldungeon.actors.Char;
+import com.watabou.pixeldungeon.actors.hero.Hero;
+import com.watabou.pixeldungeon.actors.hero.HeroClass;
+import com.watabou.pixeldungeon.actors.mobs.Mob;
+import com.watabou.pixeldungeon.items.Ankh;
+import com.watabou.pixeldungeon.items.Heap;
+import com.watabou.pixeldungeon.items.Item;
+import com.watabou.pixeldungeon.items.potions.Potion;
+import com.watabou.pixeldungeon.items.rings.Ring;
+import com.watabou.pixeldungeon.items.scrolls.Scroll;
+import com.watabou.pixeldungeon.items.wands.Wand;
+import com.watabou.pixeldungeon.levels.DeadEndLevel;
+import com.watabou.pixeldungeon.levels.Level;
+import com.watabou.pixeldungeon.levels.Room;
+import com.watabou.pixeldungeon.levels.Terrain;
+import com.watabou.pixeldungeon.scenes.GameScene;
+import com.watabou.pixeldungeon.ui.QuickSlot;
+import com.watabou.pixeldungeon.utils.BArray;
+import com.watabou.pixeldungeon.utils.GLog;
+import com.watabou.pixeldungeon.utils.Utils;
+import com.watabou.pixeldungeon.windows.WndResurrect;
+import com.watabou.utils.Bundle;
+import com.watabou.utils.PathFinder;
+import com.watabou.utils.Random;
+import com.watabou.utils.SystemTime;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.GregorianCalendar;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import lombok.Getter;
+import lombok.SneakyThrows;
+import lombok.val;
+import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
+
+public class Dungeon {
+
+    public static int potionOfStrength;
+    public static int scrollsOfUpgrade;
+    public static int arcaneStyli;
+    public static boolean dewVial; // true if the dew vial can be spawned
+    public static int transmutation; // depth number for a well of transmutation
+
+    @Getter
+    private static int challenges;
+    @Getter
+    private static int facilitations;
+
+    @NotNull
+    public static Hero hero = CharsList.DUMMY_HERO;
+
+    public static Level level;
+    public static String levelId;
+    public static String previousLevelId;
+
+    public static int depth;
+    private static long lastSaveTimestamp;
+
+    public static String gameId;
+
+    private static boolean realtime;
+
+    private static int moveTimeoutIndex;
+
+    public static HashSet<Integer> chapters;
+
+    // items tossed into a chasm/pit - they fall to the next depth and are
+    // handed back when the hero gets there
+    public static final List<Item>   chasmItems = new ArrayList<>();
+    public static final List<Integer> chasmItemDepths = new ArrayList<>();
+
+    // Hero's field of view
+    public static boolean[] visible;
+
+    public static boolean nightMode;
+
+    // Current char passability map
+    private static boolean[] passable;
+
+    public static HeroClass heroClass;
+
+    @Getter
+    private static boolean isometricMode = false;
+    public static boolean isometricModeAllowed = false;
+
+    // register kind-based save resolvers before any bundle IO can happen
+    static {
+        Bundle.registerEntityResolver("mob", MobFactory::tryByName);
+        Bundle.registerEntityResolver("item", ItemFactory::tryByName);
+        Bundle.registerEntityResolver("buff", BuffFactory::tryByName);
+        Bundle.registerEntityResolver("levelObject", LevelObjectsFactory::tryByName);
+    }
+
+
+    public static void initSizeDependentStuff(int w, int h) {
+
+        if(BuildConfig.DEBUG) {
+            GLog.debug("dungeon size: " + w + "x" + h);
+            //Utils.printStackTrace();
+        }
+
+        int size = w * h;
+
+        visible = new boolean[size];
+        passable = new boolean[size];
+
+        Arrays.fill(visible, false);
+
+        PathFinder.setMapSize(w, h);
+    }
+
+    public static void reset() {
+        if (!ModdingBase.activeModSupported()) {
+            throw ModdingMode.modException(new Exception(
+                Utils.format("Mod %s is too old for this version of Remixed Pixel Dungeon. Update the mod.",
+                    ModdingBase.activeMod())));
+        }
+        ModQuirks.reset();
+        if (!Scene.sceneMode.equals(Scene.LEVELS_TEST)) {
+            LuaEngine.reset();
+            loadModData();
+        } else {
+            LuaEngine.runScriptFile("scripts/startup/quirks.lua");
+        }
+
+        DungeonGenerator.reset();
+        SpellFactory.reset();
+
+        Treasury.reset();
+        Statistics.reset();
+        Journal.reset();
+
+        // ALL quests (sadGhost/wandmaker/imp/blacksmith/scarecrow/cagedKobold/
+        // azuterron) live in scripts/lib/quest.lua now - state clears with LuaEngine.reset()
+
+        Badges.reset();
+        ItemsList.reset();
+        CharsList.reset();
+        QuickSlot.reset();
+
+        chasmItems.clear();
+        chasmItemDepths.clear();
+
+        hero = CharsList.DUMMY_HERO;
+    }
+
+    public static void init() {
+        synchronized (GameLoop.stepLock) {
+            GameLoop.loadingOrSaving.incrementAndGet();
+            try {
+                SaveUtils.deleteLevels(heroClass);
+
+                gameId = String.valueOf(SystemTime.now());
+
+                reset();
+
+                Wand.initWoods();
+                Ring.initGems();
+                Scroll.initLabels();
+                Potion.initColors();
+
+                depth = 0;
+
+                potionOfStrength = 0;
+                scrollsOfUpgrade = 0;
+                arcaneStyli = 0;
+                dewVial = true;
+                transmutation = Random.IntRange(6, 14);
+
+                chapters = new HashSet<>();
+
+                Room.shuffleTypes();
+
+                hero = new Hero(GameLoop.getDifficulty());
+
+                heroClass.initHero(hero);
+
+                hero.levelId = DungeonGenerator.getEntryLevel();
+
+                realtime = GamePreferences.realtime();
+                moveTimeoutIndex = GamePreferences.limitTimeoutIndex(GamePreferences.moveTimeout());
+            } finally {
+                // caveman: failed init must not leak the counter - game wedges forever
+                GameLoop.loadingOrSaving.decrementAndGet();
+            }
+        }
+    }
+
+    @Contract(pure = true)
+    public static boolean isChallenged(int mask) {
+        return (getChallenges() & mask) != 0;
+    }
+
+    @Contract(pure = true)
+    public static boolean isFacilitated(int mask) {
+        return (facilitations & mask) != 0;
+    }
+
+    private static void updateStatistics() {
+        if (depth > Statistics.deepestFloor) {
+            Statistics.deepestFloor = depth;
+
+            Statistics.completedWithNoKilling = Statistics.qualifiedForNoKilling;
+        }
+    }
+
+    @NotNull
+    public static Level newLevel(@NotNull Position pos) {
+        synchronized (GameLoop.stepLock) {
+            GameLoop.loadingOrSaving.incrementAndGet();
+
+            Level level = null;
+            try {
+                updateStatistics();
+
+                if (!DungeonGenerator.isLevelExist(pos.levelId)) {
+                    pos.levelId = DungeonGenerator.getEntryLevel();
+                    pos.cellId = -1;
+                    pos = DungeonGenerator.descend(pos);
+                }
+
+                level = DungeonGenerator.createLevel(pos);
+
+                Dungeon.hero.setPos(level.entrance);
+
+                Statistics.qualifiedForNoKilling = !DungeonGenerator.getLevelProperty(level.levelId, "isSafe", false);
+            } finally {
+                // caveman: failed level creation must not leak the counter
+                GameLoop.loadingOrSaving.decrementAndGet();
+            }
+            return level;
+        }
+    }
+
+    public static void resetLevel() {
+
+        initSizeDependentStuff(level.getWidth(), level.getHeight());
+
+        level.reset();
+        switchLevel(level, level.entrance, CharsList.emptyMobList);
+    }
+
+    public static String tip(Level _level) {
+        if (_level instanceof DeadEndLevel) {
+
+            return StringsManager.getVar(R.string.Dungeon_DeadEnd);
+
+        } else {
+            String[] tips = StringsManager.getVars(R.array.Dungeon_Tips);
+            int index = depth - 1;
+
+            if (index == -1) {
+                return "Welcome to test level";
+            }
+
+            if (index < tips.length) {
+                return tips[index];
+            } else {
+                return StringsManager.getVar(R.string.Dungeon_NoTips);
+            }
+        }
+    }
+
+    public static boolean shopOnLevel(Level level) {
+        if (level instanceof NecroLevel || level instanceof IceCavesLevel) {
+            return false;
+        } else {
+            return depth == 6 || depth == 11 || depth == 16 || depth == 27;
+        }
+
+    }
+
+    @LuaInterface
+    public static boolean bossLevel() {
+        final Level level = Dungeon.level;
+
+        return level != null && level.isBossLevel();
+    }
+
+    // hero-owned pets persisted in the game bundle and waiting to be spawned
+    // by the next switchLevel (CONTINUE, resurrect); live instances, not copies
+    private static final List<Mob> restoredFollowers = new ArrayList<>();
+
+    @NotNull
+    public static List<Mob> takeRestoredFollowers() {
+        List<Mob> followers = new ArrayList<>(restoredFollowers);
+        restoredFollowers.clear();
+        return followers;
+    }
+
+    public static void switchLevel(@NotNull final Level level, int pos, Collection<Mob> followers) {
+        EventCollector.setSessionData("level", level.levelId);
+
+        isometricModeAllowed = level.isPlainTile(1); //TODO check entire level
+
+        if(ModQuirks.only2dTiles) {
+            isometricModeAllowed = false;
+        }
+        
+        if (isometricModeAllowed) {
+            setIsometricMode(Preferences.INSTANCE.getBoolean(CommonPrefs.KEY_USE_ISOMETRIC_TILES, false));
+        } else {
+            setIsometricMode(false);
+        }
+
+        nightMode = new GregorianCalendar().get(Calendar.HOUR_OF_DAY) < 7;
+
+        Actor.init(level);
+
+        Actor respawner = level.respawner();
+        if (respawner != null) {
+            Actor.add(respawner);
+        }
+
+        hero.levelId = level.levelId;
+        hero.setViewDistance(level.getViewDistance());
+
+        if (level.cellValid(pos)) {
+            hero.setPos(pos);
+        } else if (level.cellValid(level.entrance)) {
+            hero.setPos(level.entrance);
+        } else {
+            hero.setPos(level.getRandomTerrainCell(Terrain.EMPTY));
+        }
+
+        // Every hero-owned pet follows its owner on any level change (Mob.followOnLevelChanged),
+        // and followers are removed from the level they leave, so a pet restored together with
+        // the destination level is always a stale copy of a follower. Same goes for any mob
+        // whose id collides with a follower's. Drop them before spawning followers,
+        // otherwise the pet ends up duplicated.
+        if (!followers.isEmpty()) {
+            Set<Integer> followerIds = new HashSet<>();
+            for (Mob mob : followers) {
+                followerIds.add(mob.getId());
+            }
+
+            Iterator<Mob> stalePets = level.mobs.iterator();
+            while (stalePets.hasNext()) {
+                Mob stalePet = stalePets.next();
+                if (stalePet.getOwner() instanceof Hero || followerIds.contains(stalePet.getId())) {
+                    GLog.debug("Removing stale pet copy: %s, %d", stalePet.getEntityKind(), stalePet.getId());
+                    Actor.remove(stalePet);
+                    Actor.freeCell(stalePet);
+                    CharsList.remove(stalePet.getId());
+                    stalePets.remove();
+                }
+            }
+        }
+
+        GLog.debug("switchLevel %s: %d followers", level.levelId, followers.size());
+
+        for (Mob mob : followers) {
+            if (CharsList.getById(mob.getId()) != mob && !CharsList.add(mob, mob.getId())) {
+                mob.assignNextId(); // follower's id is taken by someone else
+            }
+
+            GLog.toFile("follower spawn: %s id=%d at %s",
+                    mob.getEntityKind(), mob.getId(), level.levelId);
+            spawnPet(level, mob);
+        }
+
+        // caveman: same dup guard as followers - initialAlies had none (#3)
+        for (Mob mob : hero.initialAlies) {
+            if (CharsList.getById(mob.getId()) != mob && !CharsList.add(mob, mob.getId())) {
+                mob.assignNextId(); // ally's id is taken by someone else
+            }
+
+            GLog.toFile("follower spawn: %s id=%d at %s",
+                    mob.getEntityKind(), mob.getId(), level.levelId);
+            spawnPet(level, mob);
+        }
+        hero.initialAlies.clear();
+
+        previousLevelId = levelId;
+        levelId = level.levelId;
+        Dungeon.level = level;
+
+        drainChasmItems();
+    }
+
+    // caveman: items that fell into a chasm land on the floor the hero just
+    // entered (fell or walked) - scatter them next to the hero
+    private static void drainChasmItems() {
+        if (chasmItems.isEmpty() || level == null) {
+            return;
+        }
+
+        for (int i = chasmItems.size() - 1; i >= 0; --i) {
+            if (chasmItemDepths.get(i) != depth) {
+                continue;
+            }
+
+            Item item = chasmItems.remove(i);
+            chasmItemDepths.remove(i);
+
+            int cell = level.getEmptyCellNextTo(hero.getPos());
+            if (!level.cellValid(cell)) {
+                cell = level.randomRespawnCell();
+            }
+            if (level.cellValid(cell)) {
+                GLog.debug("chasm item %s lands on %s", item.getEntityKind(), level.levelId);
+                level.drop(item, cell);
+            }
+        }
+    }
+
+    // caveman: a heap landing on a chasm/pit cell is visually discarded, but
+    // its items keep falling - the hero can recover them one depth lower
+    public static void addToChasmTransit(Heap heap) {
+        for (Item item : heap.items) {
+            chasmItems.add(item);
+            chasmItemDepths.add(depth + 1);
+        }
+    }
+
+    private static void spawnPet(Level level, Mob mob) {
+        int pos = level.getNearestTerrain(hero.getPos(), mob::canSpawnAt);
+
+        // a pet keeps its spot when the game reloads on the level it was left on
+        if (level.levelId.equals(mob.levelId) && level.cellValid(mob.getPos()) && mob.canSpawnAt(level, mob.getPos())) {
+            pos = mob.getPos();
+        }
+
+        GLog.debug("spawnPet: %s id=%d -> cell %d", mob.getEntityKind(), mob.getId(), pos);
+
+        if (level.cellValid(pos)) {
+            mob.setPos(pos);
+        } else {
+            mob.setPos(hero.getPos());
+        }
+        mob.levelId = level.levelId;
+
+        mob.setEnemy(CharsList.DUMMY);
+
+        // caveman: self-heal fraction-stripped pets from saves made before the
+        // CityBossLevel servant-call fix - owner is still the hero, so re-pet it
+        if (mob.getOwner() instanceof Hero && !mob.isPet()) {
+            GLog.debug("spawnPet: restoring stripped pet %s id=%d", mob.getEntityKind(), mob.getId());
+            mob.makePet(mob, hero.getId());
+        }
+
+        // caveman: remote-controlled followers keep their injected state -
+        // the driver owns them, Wandering would silently free them
+        if (!mob.isRemoteControlled()) {
+            mob.setState(MobAi.getStateByClass(Wandering.class));
+        }
+        level.spawnMob(mob);
+    }
+
+    public static boolean posNeeded() {
+        int[] quota = {4, 2, 9, 4, 14, 6, 19, 8, 24, 9};
+        return chance(quota, potionOfStrength);
+    }
+
+    public static boolean soeNeeded() {
+        int[] quota = {5, 3, 10, 6, 15, 9, 20, 12, 25, 13};
+        return chance(quota, scrollsOfUpgrade);
+    }
+
+    private static boolean chance(int[] quota, int number) {
+
+        for (int i = 0; i < quota.length; i += 2) {
+            int qDepth = quota[i];
+            if (depth <= qDepth) {
+                int qNumber = quota[i + 1];
+                return Random.Float() < (float) (qNumber - number) / (qDepth - depth + 1);
+            }
+        }
+
+        return false;
+    }
+
+    public static boolean asNeeded() {
+        return Random.Int(12 * (1 + arcaneStyli)) < depth;
+    }
+
+    private static final String VERSION = "version";
+    public static final String HERO = "hero";
+    public static final String DEPTH = "depth";
+    private static final String LEVEL = "level";
+    private static final String POS = "potionsOfStrength";
+    private static final String SOU = "scrollsOfEnhancement";
+    private static final String AS = "arcaneStyli";
+    private static final String DV = "dewVial";
+    private static final String WT = "transmutation";
+    private static final String CHAPTERS = "chapters";
+    private static final String BADGES = "badges";
+    private static final String SCRIPTS_DATA = "scripts_data";
+    private static final String PETS = "pets";
+    private static final String CHASM_ITEMS = "chasmItems";
+    private static final String CHASM_ITEMS_DEPTHS = "chasmItemsDepths";
+    private static final String GAME_ID = "game_id";
+    private static final String MOVE_TIMEOUT = "move_timeout";
+    private static final String LAST_USED_ID = "lastUsedId";
+    private static final String MOD = "mod";
+    private static final String REALTIME = "realtime";
+    private static final String CHALLENGES = "challenges";
+    private static final String FACILITATIONS = "facilations";
+
+
+    public static void gameOver() {
+        SaveUtils.deleteSaveFromSlot(SaveUtils.getPrevSave(), heroClass);
+        SaveUtils.deleteSaveFromSlot(SaveUtils.getAutoSave(), heroClass);
+        Dungeon.deleteGame(true);
+        heroClass = HeroClass.NONE;
+    }
+
+    public static void saveGame(String fileName) throws IOException {
+        Bundle bundle = new Bundle();
+
+        bundle.put(GAME_ID, gameId);
+        bundle.put(VERSION, GameLoop.version);
+        bundle.put(HERO, hero);
+        bundle.put(DEPTH, depth);
+
+        // hero-owned pets live in level.mobs in memory but are persisted here,
+        // never inside level save files
+        List<Mob> heroPets = new ArrayList<>();
+        if (level != null) {
+            for (Mob mob : level.mobs) {
+                if (mob.getOwner() instanceof Hero) {
+                    mob.levelId = level.levelId; // stamp the level the pet's pos belongs to
+                    heroPets.add(mob);
+                }
+            }
+        }
+        for (Mob mob : restoredFollowers) {
+            if (!heroPets.contains(mob)) {
+                heroPets.add(mob);
+            }
+        }
+        bundle.put(PETS, heroPets);
+
+        bundle.put(CHASM_ITEMS, chasmItems);
+        int[] chasmDepths = new int[chasmItemDepths.size()];
+        for (int i = 0; i < chasmDepths.length; i++) {
+            chasmDepths[i] = chasmItemDepths.get(i);
+        }
+        bundle.put(CHASM_ITEMS_DEPTHS, chasmDepths);
+
+        bundle.put(POS, potionOfStrength);
+        bundle.put(SOU, scrollsOfUpgrade);
+        bundle.put(AS, arcaneStyli);
+        bundle.put(DV, dewVial);
+        bundle.put(WT, transmutation);
+
+        bundle.put(REALTIME, realtime);
+        bundle.put(CHALLENGES, getChallenges());
+        bundle.put(FACILITATIONS, facilitations);
+
+        int count = 0;
+        int[] ids = new int[chapters.size()];
+        for (Integer id : chapters) {
+            ids[count++] = id;
+        }
+        bundle.put(CHAPTERS, ids);
+
+        // quest statics bundle node (QUESTS) is gone - all quest state lives
+        // in scripts/lib/quest.lua storage (SCRIPTS_DATA bundle node)
+
+        Room.storeRoomsInBundle(bundle);
+
+        Statistics.storeInBundle(bundle);
+        Journal.storeInBundle(bundle);
+        Logbook.storeInBundle(bundle);
+
+        Scroll.save(bundle);
+        Potion.save(bundle);
+        Wand.save(bundle);
+        Ring.save(bundle);
+        QuickSlot.save(bundle);
+
+        Bundle badges = new Bundle();
+        Badges.saveLocal(badges);
+        bundle.put(BADGES, badges);
+
+        bundle.put(MOVE_TIMEOUT, moveTimeoutIndex);
+
+        bundle.put(SCRIPTS_DATA,
+                LuaEngine.require(LuaEngine.SCRIPTS_LIB_STORAGE).get("serializeGameData").call().checkjstring());
+
+        bundle.put(LAST_USED_ID, EntityIdSource.getNextId());
+        CharsList.storeInBundle(bundle);
+        bundle.put(MOD, ModdingBase.activeMod());
+
+        OutputStream output = FileSystem.getOutputStream(fileName);
+        Bundle.write(bundle, output);
+        output.close();
+
+        saveModData();
+
+    }
+
+    private static void saveModData() throws IOException {
+        OutputStream modData = FileSystem.getOutputStream(SaveUtils.modDataFile());
+        Bundle modBundle = new Bundle();
+        modBundle.put(SCRIPTS_DATA,
+                LuaEngine.require(LuaEngine.SCRIPTS_LIB_STORAGE).get("serializeModData").call().checkjstring());
+        Bundle.write(modBundle, modData);
+        modData.close();
+    }
+
+    @SneakyThrows
+    private static void saveLevel(String saveTo, Level level) {
+        Bundle bundle = new Bundle();
+        bundle.put(LEVEL, level);
+
+        bundle.put(SCRIPTS_DATA,
+                LuaEngine.require(LuaEngine.SCRIPTS_LIB_STORAGE).get("serializeLevelData").call().checkjstring());
+
+
+        OutputStream output = FileSystem.getOutputStream(saveTo);
+        Bundle.write(bundle, output);
+        output.close();
+    }
+
+    //@AddTrace(name = "Dungeon.saveAllImpl")
+    private static void saveAllImpl() {
+        float MBytesAvailable = Os.getAvailableInternalMemorySize() / 1024f / 1024f;
+
+        if (MBytesAvailable < 2) {
+            EventCollector.logEvent("saveGame", "lowMemory");
+            Game.toast("Low memory condition");
+        }
+
+        if (level != null && hero.valid() && hero.isAlive()) {
+            Level thisLevel = Dungeon.level;
+
+            Actor.fixTime();
+            try {
+                SaveUtils.copySaveToSlot(SaveUtils.getPrevSave(), heroClass);
+
+                Position current = currentPosition();
+
+                String saveToLevel = getLevelSaveFile(current);
+                String saveToGame = SaveUtils.gameFile(hero.getHeroClass());
+
+                saveGame(saveToGame);
+                saveLevel(saveToLevel, thisLevel);
+
+                Library.saveLibrary();
+
+                SaveUtils.copySaveToSlot(SaveUtils.getAutoSave(), heroClass);
+
+                GamesInProgress.set(hero, depth);
+            } catch (IOException e) {
+                Game.toast(StringsManager.getVar(R.string.Dungeon_saveIoError) + "\n" + e.getLocalizedMessage());
+                EventCollector.logException(new Exception("cannot write save", e));
+            }
+        } else if (WndResurrect.instance != null) {
+
+            WndResurrect.instance.hide();
+            Hero.reallyDie(hero, WndResurrect.causeOfDeath);
+        } else {
+            EventCollector.logException(new Exception(Utils.format("spurious save: %s %s", String.valueOf(level), String.valueOf(hero))));
+        }
+    }
+
+    @NotNull
+    private static String getLevelSaveFile(Position current) {
+        return SaveUtils.depthFileForSave(hero.getHeroClass(),
+                DungeonGenerator.getLevelDepth(current.levelId),
+                DungeonGenerator.getLevelKind(current.levelId),
+                current.levelId);
+    }
+
+    public static void save(boolean force) {
+
+        if (!force && SystemTime.now() - lastSaveTimestamp < 1000) {
+            return;
+        }
+
+        if(! Dungeon.hero.isAlive()) {
+            return;
+        }
+
+        GameLoop.loadingOrSaving.incrementAndGet();
+        try {
+            synchronized (GameLoop.stepLock) {
+                saveAllImpl();
+            }
+        } finally {
+            // caveman: failed save must not leak the counter - game wedges forever
+            GameLoop.loadingOrSaving.decrementAndGet();
+        }
+
+        lastSaveTimestamp = SystemTime.now();
+    }
+
+    //@AddTrace(name = "Dungeon.loadGame")
+    public static void loadGame() throws IOException {
+        loadGame(SaveUtils.gameFile(heroClass), true);
+    }
+
+    public static void loadGameForRankings(String fileName) throws IOException {
+        loadGame(fileName, false);
+    }
+
+    private static void loadGameFromBundle(Bundle bundle, boolean fullLoad) {
+
+        String saveMod = bundle.optString(MOD, ModdingBase.REMIXED);
+        String activeMod = ModdingBase.activeMod();
+
+        if (fullLoad && !saveMod.equals(activeMod)) {
+            EventCollector.logException(new Exception(
+                    Utils.format("loading save from another mod (save: %s, active: %s)", saveMod, activeMod)));
+        }
+
+        if(fullLoad) {
+            reset();
+        }
+
+        Dungeon.gameId = bundle.optString(GAME_ID, Utils.UNKNOWN);
+        EntityIdSource.setLastUsedId(bundle.optInt(LAST_USED_ID, 1));
+        CharsList.restoreFromBundle(bundle);
+
+        // item status handlers must exist before pets are constructed:
+        // mob loot defs (json or ctor) may build potions/wands/scrolls/rings
+        Scroll.restore(bundle);
+        Potion.restore(bundle);
+        Wand.restore(bundle);
+        Ring.restore(bundle);
+        QuickSlot.restore(bundle);
+
+        restoredFollowers.clear();
+        for (Mob mob : bundle.getCollection(PETS, Mob.class)) {
+            if (mob != null && mob.valid() && !CharsList.isDestroyed(mob.getId())) {
+                restoredFollowers.add(mob);
+            }
+        }
+
+        chasmItems.clear();
+        chasmItems.addAll(bundle.getCollection(CHASM_ITEMS, Item.class));
+        chasmItemDepths.clear();
+        for (int d : bundle.getIntArray(CHASM_ITEMS_DEPTHS)) {
+            chasmItemDepths.add(d);
+        }
+
+        potionOfStrength = bundle.getInt(POS);
+        scrollsOfUpgrade = bundle.getInt(SOU);
+        arcaneStyli = bundle.getInt(AS);
+        dewVial = bundle.getBoolean(DV);
+        transmutation = bundle.getInt(WT);
+
+        realtime = bundle.getBoolean(REALTIME);
+        setChallenges(bundle.optInt(CHALLENGES, 0));
+        setFacilitations(bundle.optInt(FACILITATIONS, 0));
+
+        if (fullLoad) {
+            chapters = new HashSet<>();
+            int[] ids = bundle.getIntArray(CHAPTERS);
+            for (int id : ids) {
+                chapters.add(id);
+            }
+
+            // old saves carry a QUESTS node with the java quest statics - it
+            // is simply not read anymore; lua quest state resets silently
+            // (accepted 16c ruling)
+
+            Room.restoreRoomsFromBundle(bundle);
+        }
+
+        Bundle badges = bundle.getBundle(BADGES);
+        if (!badges.isNull()) {
+            Badges.loadLocal(badges);
+        } else {
+            Badges.reset();
+        }
+
+        String version = bundle.getString(VERSION);
+
+        hero = (Hero) bundle.get(HERO);
+        if (hero == null) {
+            throw new TrackedRuntimeException("no hero in bundle");
+        }
+
+        depth = bundle.getInt(DEPTH);
+
+        Statistics.restoreFromBundle(bundle);
+        Journal.restoreFromBundle(bundle);
+        Logbook.restoreFromBundle(bundle);
+        try {
+            LuaEngine.require(LuaEngine.SCRIPTS_LIB_STORAGE).get("deserializeGameData").call(bundle.getString(SCRIPTS_DATA));
+        } catch (Exception e) {
+            // web luaj throws on serpent's intentionally-failing first compile
+            // attempt instead of returning nil - degrade to default storage
+            // state like the lua-side "or {}" fallback would
+            EventCollector.logEvent("lua_deserializeGameData_failed");
+        }
+
+        moveTimeoutIndex = GamePreferences.limitTimeoutIndex(bundle.optInt(MOVE_TIMEOUT, Integer.MAX_VALUE));
+    }
+
+    private static void loadGame(String fileName, boolean fullLoad) throws IOException {
+        synchronized (GameLoop.stepLock) {
+            try {
+                GameLoop.loadingOrSaving.incrementAndGet();
+
+                val bundle = gameBundle(fileName);
+                if (bundle.isPresent()) {
+                    loadGameFromBundle(bundle.get(), fullLoad);
+                }
+
+                loadModData();
+
+            } finally {
+                GameLoop.loadingOrSaving.decrementAndGet();
+            }
+        }
+    }
+
+    @SneakyThrows
+    private static void loadModData() {
+        val modBundle = gameBundle(SaveUtils.modDataFile());
+        if (modBundle.isPresent()) {
+            try {
+                LuaEngine.require(LuaEngine.SCRIPTS_LIB_STORAGE).get("deserializeModData").call(modBundle.get().getString(SCRIPTS_DATA));
+            } catch (Exception e) {
+                // see loadGameFromBundle - web luaj throws where serpent expects nil
+                EventCollector.logEvent("lua_deserializeModData_failed");
+            }
+        }
+    }
+
+    @NotNull
+    @SneakyThrows
+    public static Level loadLevel(Position next) {
+        synchronized (GameLoop.stepLock) {
+            try {
+                GameLoop.loadingOrSaving.incrementAndGet();
+
+                String levelId = next.levelId;
+
+                if (Dungeon.level != null) {
+                    CharsList.remove(Dungeon.hero.getId());
+                    for (var mob : Dungeon.level.mobs) {
+                        CharsList.remove(mob.getId());
+                    }
+                    Dungeon.level = null;
+                }
+
+                DungeonGenerator.loadingLevel(next);
+
+                String loadFrom = SaveUtils.depthFileForSave(heroClass,
+                        DungeonGenerator.getLevelDepth(levelId),
+                        DungeonGenerator.getLevelKind(levelId),
+                        levelId);
+
+                GLog.toFile("loading level: %s", loadFrom);
+
+
+                if (DungeonGenerator.isStatic(levelId)) {
+                    return newLevel(next);
+                }
+
+                try (InputStream input = FileSystem.getInputStream(loadFrom)) {
+                    Bundle bundle = Bundle.read(input);
+
+                    Level level = (Level) bundle.get("level");
+                    try {
+                        LuaEngine.require(LuaEngine.SCRIPTS_LIB_STORAGE).get("deserializeLevelData").call(bundle.getString(SCRIPTS_DATA));
+                    } catch (Exception e) {
+                        // see loadGameFromBundle - web luaj throws where
+                        // serpent expects nil
+                        EventCollector.logEvent("lua_deserializeLevelData_failed");
+                    }
+
+                    if (level == null) {
+                        level = newLevel(next);
+                    }
+
+                    // old-format level saves keep hero pets inside the level file;
+                    // move them to the game bundle store, dropping copies of pets
+                    // that already exist - either pending in the game bundle or
+                    // live on the current level (about to follow the hero)
+                    for (Mob pet : Level.recoveredFollowers) {
+                        boolean known = false;
+                        for (Mob restored : restoredFollowers) {
+                            if (restored.getEntityKind().equals(pet.getEntityKind())) {
+                                known = true;
+                                break;
+                            }
+                        }
+                        if (!known && Dungeon.level != null) {
+                            for (Mob live : Dungeon.level.mobs) {
+                                if (live.isPet() && live.getEntityKind().equals(pet.getEntityKind())) {
+                                    known = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!known) {
+                            restoredFollowers.add(pet);
+                        }
+                    }
+                    Level.recoveredFollowers.clear();
+
+                    level.levelId = next.levelId;
+                    initSizeDependentStuff(level.getWidth(), level.getHeight());
+                    return level;
+                } catch (FileNotFoundException ignore) {
+                    return newLevel(next);
+                }
+            } finally {
+                GameLoop.loadingOrSaving.decrementAndGet();
+            }
+        }
+    }
+
+    public static void deleteGame(boolean deleteLevels) {
+        GLog.toFile("deleteGame");
+        SaveUtils.deleteGameFile(heroClass);
+
+        if (deleteLevels) {
+            SaveUtils.deleteLevels(heroClass);
+        }
+
+        GamesInProgress.delete(heroClass);
+    }
+
+    public static Optional<Bundle> gameBundle(String fileName) throws IOException {
+            try (InputStream input = FileSystem.getInputStream(fileName)) {
+                return Optional.of(Bundle.read(input));
+            } catch (FileNotFoundException ignore) {
+            }
+
+            return Optional.absent();
+    }
+
+    @LuaInterface
+    public static void fail(String desc) {
+        if (hero.getBelongings().getItem(Ankh.class) == null) {
+            Rankings.INSTANCE.submit(Rankings.gameOver.LOSE, desc);
+        }
+    }
+
+    public static void win(String desc, gameOver kind) {
+        if (getChallenges() != 0) {
+            Badges.validateChampion();
+        }
+        Rankings.INSTANCE.submit(kind, desc);
+    }
+
+
+    public static void observe() {
+        GameScene.observeRequest();
+    }
+
+    public static void observeImpl() {
+        level.updateFieldOfView(hero.getControlTarget());
+
+        System.arraycopy(level.fieldOfView, 0, visible, 0, visible.length);
+
+        BArray.or(level.mapped, visible, level.mapped);
+
+        GameScene.afterObserve();
+    }
+
+    private static void markActorsAsUnpassableIgnoreFov() {
+        for (Char actor : Actor.chars.values()) {
+            int pos = actor.getPos();
+            passable[pos] = false;
+        }
+    }
+
+    private static void markObjects(Char ch) {
+
+        boolean ignoreDanger = ignoreDanger(ch);
+
+        for (val objectLayer : level.objects.values()) {
+            for (val object : objectLayer.values()) {
+                int pos = object.getPos();
+
+                if (!level.cellValid(pos)) {
+                    EventCollector.logException("Invalid object " + object.getEntityKind());
+                    level.remove(object);
+                    continue;
+                }
+
+                if (object.nonPassable(ch)) {
+                    passable[pos] = false;
+                }
+
+                if (!ignoreDanger && object.avoid()) {
+                    passable[pos] = false;
+                }
+
+            }
+        }
+    }
+
+    private static void markActorsAsUnpassable(Char ch, boolean[] visible) {
+        int chPos = ch.getPos();
+        for (Char actor : Actor.chars.values()) {
+            int pos = actor.getPos();
+
+            if (!level.cellValid(pos)) {
+                GLog.debug("WTF?");
+                return;
+            }
+
+            if (visible[pos] || level.adjacent(pos, chPos)) {
+                if (actor instanceof Mob) {
+                    passable[pos] = passable[pos] && !level.avoid[pos] && actor.getOwnerId() == ch.getId();
+                }
+            }
+        }
+    }
+
+
+    public static int findPath(@NotNull Hero ch, int to, boolean[] pass, boolean[] visible) {
+
+        int from = ch.getPos();
+
+        if (level.adjacent(from, to)) {
+            if (!(pass[to] || level.avoid[to])) {
+                return Level.INVALID_CELL;
+            }
+
+            Char chr = null;
+
+            if (level.fieldOfView[to]) {
+                chr = Actor.findChar(to);
+            }
+
+
+            if (chr instanceof Mob) {
+                Mob mob = (Mob) chr;
+                if (mob.isPet()) {
+                    return to;
+                }
+            }
+            return chr == null ? to : Level.INVALID_CELL;
+        }
+
+        if (ignoreDanger(ch)) {
+            BArray.or(pass, level.avoid, passable);
+        } else {
+            BArray.and_not(pass, level.avoid, passable);
+        }
+
+        markActorsAsUnpassable(ch, visible);
+
+        markObjects(ch);
+
+        return PathFinder.getStep(from, to, passable);
+    }
+
+    public static boolean ignoreDanger(@NotNull Char ch) {
+        return ch.isFlying() || ch.buffLevel(BuffFactory.AMOK) > 0;
+    }
+
+
+    public static int findPath(@NotNull Char ch, int to, boolean[] pass) {
+
+        int from = ch.getPos();
+
+        if (level.adjacent(from, to)) {
+
+            if (!(pass[to] || level.avoid[to])) {
+                return Level.INVALID_CELL;
+            }
+
+            return Actor.findChar(to) == null ? to : Level.INVALID_CELL;
+        }
+
+        if (ch.isFlying() || ch.buffLevel(BuffFactory.AMOK) > 0) {
+            BArray.or(pass, level.avoid, passable);
+        } else {
+            BArray.and_not(pass, level.avoid, passable);
+        }
+
+        markActorsAsUnpassableIgnoreFov();
+
+        markObjects(ch);
+
+        return PathFinder.getStep(from, to, passable);
+
+    }
+
+    public static int flee(Char ch, int from, boolean[] pass) {
+
+        int cur = ch.getPos();
+
+        if (ch.isFlying()) {
+            BArray.or(pass, level.avoid, passable);
+        } else {
+            System.arraycopy(pass, 0, passable, 0, level.getLength());
+        }
+
+        markActorsAsUnpassableIgnoreFov();
+        markObjects(ch);
+
+        passable[cur] = true;
+
+        return PathFinder.getStepBack(cur, from, passable);
+    }
+
+    public static Position currentPosition() {
+        return new Position(hero.levelId, hero.getPos());
+    }
+
+
+    public static boolean isLoading() {
+        return hero.invalid() || level == null || GameLoop.loadingOrSaving.get() > 0;
+    }
+
+    public static boolean realtime() {
+        return realtime;
+    }
+
+    public static double moveTimeout() {
+        if (ModQuirks.moveTimeout>0) {
+            return ModQuirks.moveTimeout;
+        }
+
+        return GameLoop.MOVE_TIMEOUTS[moveTimeoutIndex];
+    }
+
+    public static void saveCurrentLevel() {
+        saveLevel(getLevelSaveFile(currentPosition()), Dungeon.level);
+    }
+
+
+    public static void setFacilitation(int mask) {
+        facilitations = facilitations | mask;
+        setFacilitations(facilitations);
+    }
+
+    public static void resetFacilitation(int mask) {
+        facilitations = facilitations & ~mask;
+        setFacilitations(facilitations);
+    }
+
+    public static boolean setChallenge(int mask) {
+        if (ModdingBase.inMod()) {
+            if (mask == Challenges.NO_TOWN) {
+                return false;
+            }
+        }
+
+        challenges = challenges | mask;
+        setChallenges(challenges);
+        return true;
+    }
+
+    public static void resetChallenge(int mask) {
+        challenges = challenges & ~mask;
+        setChallenges(challenges);
+    }
+
+    public static void setChallenges(int challenges) {
+        EventCollector.setSessionData(CHALLENGES, String.valueOf(challenges));
+        Dungeon.challenges = challenges;
+    }
+
+    public static void setFacilitations(int facilitations) {
+        EventCollector.setSessionData(FACILITATIONS, String.valueOf(facilitations));
+        Dungeon.facilitations = facilitations;
+    }
+
+    public static boolean isPathVisible(int from, int to) {
+        return isCellVisible(from) || isCellVisible(to);
+    }
+
+    @LuaInterface
+    public static boolean isCellVisible(int cell) {
+        if (level == null) {
+            return false;
+        }
+
+        if (!level.cellValid(cell)) {
+            EventCollector.logException(Utils.format("visibility check on %d", cell));
+            return false;
+        }
+        // caveman: validate against the array itself - mid-transition level()
+        // and visible[] can disagree (stale level passed 766 on a 256-cell
+        // level) and the AIOOBE here killed the render thread.
+        return visible != null && cell >= 0 && cell < visible.length && visible[cell];
+    }
+
+    public static boolean isNorthWallVisible(int cell) {
+        if (!Dungeon.isIsometricMode()) {
+            return isCellVisible(cell);
+        }
+
+        if (!isCellVisible(cell)) {
+            return false;
+        }
+
+        int next_cell = cell + level.getWidth();
+        if (!level.cellValid(next_cell)) {
+            return true;
+        }
+        return isCellVisible(next_cell);
+    }
+
+
+    public static void onHeroLeaveLevel() {
+        if (level != null) {
+            level.unseal();
+        }
+    }
+
+    public static void setIsometricMode(boolean isometricMode) {
+        EventCollector.setSessionData("isometricMode", String.valueOf(isometricMode));
+        Dungeon.isometricMode = isometricMode;
+    }
+
+}

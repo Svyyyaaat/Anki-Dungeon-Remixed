@@ -1,0 +1,11 @@
+{
+   "baseSpeed"	   : 0,
+   "spriteDesc"    :"spritesDesc/DrunkardNPC.json",
+   "scriptFile"    :"scripts/npc/Drunkard",
+   "friendly"      :true,
+   "movable"       :false,
+   "aiState"       :"Passive",
+   "fraction"      :"NEUTRAL",
+   "immortal"      :true,
+   "isHumanoid"    :true
+}

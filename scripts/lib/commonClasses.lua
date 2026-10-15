@@ -1,0 +1,660 @@
+--
+-- User: mike
+-- Date: 07.11.2017
+-- Time: 0:13
+-- This file is part of Remixed Pixel Dungeon.
+--
+
+local json = require("scripts/lib/json")
+
+local GLog  = luajava.bindClass("com.watabou.pixeldungeon.utils.GLog")
+
+local RemixedDungeon = luajava.bindClass("com.nyrds.platform.game.RemixedDungeon")
+
+local GameLoop = luajava.bindClass("com.nyrds.pixeldungeon.game.GameLoop")
+
+local DungeonGenerator = luajava.bindClass("com.nyrds.pixeldungeon.utils.DungeonGenerator")
+local PathFinder       = luajava.bindClass("com.watabou.utils.PathFinder")
+
+local Sample           = luajava.bindClass("com.nyrds.platform.audio.Sample")
+local Music            = luajava.bindClass("com.nyrds.platform.audio.MusicManager")
+local StringsManager   = luajava.bindClass("com.nyrds.platform.util.StringsManager")
+local CharUtils        = luajava.bindClass("com.watabou.pixeldungeon.actors.CharUtils")
+local ModQuirks        = luajava.bindClass("com.nyrds.pixeldungeon.game.ModQuirks")
+local Util             = luajava.bindClass("com.nyrds.util.Util")
+local ModdingBase      = luajava.bindClass("com.nyrds.util.ModdingBase")
+local CommonActions    = luajava.bindClass("com.nyrds.pixeldungeon.mechanics.CommonActions")
+local BackpackMode     = luajava.bindClass("com.watabou.pixeldungeon.windows.WndBag").Mode
+local Treasury         = luajava.bindClass("com.nyrds.pixeldungeon.items.Treasury")
+
+local Buffs  = {
+    Buff         = luajava.bindClass("com.watabou.pixeldungeon.actors.buffs.Buff"),
+    Stun        = "Stun",
+    Roots        = "Roots",
+    Paralysis    = "Paralysis",
+    Vertigo      = "Vertigo",
+    Invisibility = "Invisibility",
+    Levitation   = "Levitation",
+    Hunger       = luajava.bindClass("com.watabou.pixeldungeon.actors.buffs.Hunger"),
+    Poison       = "Poison",
+    Frost        = "Frost",
+    Burning      = "Burning",
+    Light        = "Light",
+    Cripple      = "Cripple",
+    Charm        = "Charm",
+    Blessed      = "Blessed",
+    MindVision   = "MindVision",
+    Necrotism    = "Necrotism",
+    RageBuff     = luajava.bindClass("com.nyrds.pixeldungeon.mechanics.buffs.RageBuff"),
+    Terror       = "Terror",
+    Amok         = "Amok",
+    Awareness    = "Awareness",
+    Barkskin     = "Barkskin",
+    Sleep        = "Sleep",
+    Slow         = "Slow",
+    Weakness     = "Weakness",
+    Blindness    = "Blindness",
+    Bleeding     = "Bleeding",
+    Shadows      = "Shadows",
+    Ooze         = "Ooze",
+    Combo        = "Combo",
+    Speed        = "Speed",
+    Fury         = "Fury",
+    SnipersMark  = "SnipersMark",
+    Regeneration = "Regeneration",
+    CandleOfMindVisionBuff = "CandleOfMindVisionBuff"
+}
+
+local Blobs = {
+    Blob = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.Blob"),
+    Fire = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.Fire"),
+    Foliage = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.Foliage"),
+    ConfusionGas = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.ConfusionGas"),
+    LiquidFlame = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.LiquidFlame"),
+    ParalyticGas = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.ParalyticGas"),
+    Darkness = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.Darkness"),
+    Web = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.Web"),
+    ToxicGas = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.ToxicGas"),
+    MiasmaGas = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.MiasmaGas"),
+    Regrowth = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.Regrowth"),
+    WaterOfHealth = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.WaterOfHealth"),
+    WaterOfTransmutation = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.WaterOfTransmutation"),
+    WaterOfAwareness = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.WaterOfAwareness"),
+    Alchemy = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.Alchemy")
+}
+
+local PseudoBlobs = {
+    Freezing = luajava.bindClass("com.watabou.pixeldungeon.actors.blobs.Freezing")
+}
+
+local Ballistica = luajava.bindClass("com.watabou.pixeldungeon.mechanics.Ballistica")
+local Challenges = luajava.bindClass("com.watabou.pixeldungeon.Challenges")
+
+local actions = {
+    eat = "Food_ACEat",
+    light = "Torch_ACLight",
+    apply = "Weightstone_ACApply",
+    mine = "Pickaxe_ACMine",
+    plant = "Plant_ACPlant",
+    reforge = "ShortSword_ACReforge",
+    zap = "Wand_ACZap",
+    read = "Scroll_ACRead",
+    drink = "Drink_ACDrink",
+    equip ="EquipableItem_ACEquip",
+    throw ="Item_ACThrow",
+    drop ="Item_ACDrop",
+    ch_steal = "CharAction_Steal",
+    ch_taunt = "CharAction_Taunt",
+    ch_push = "CharAction_Push",
+    ch_order = "CharAction_Order",
+    ch_hit = "CharAction_Hit"
+}
+
+local Bundle           = "com.watabou.utils.Bundle"
+
+local Objects = {
+    Ui = {
+        WndMessage     = "com.watabou.pixeldungeon.windows.WndMessage",
+        WndStory       = "com.watabou.pixeldungeon.windows.WndStory",
+        WndQuest       = "com.watabou.pixeldungeon.windows.WndQuest",
+        WndOptionsLua  = "com.nyrds.pixeldungeon.windows.WndOptionsLua",
+        WndShopOptions = "com.nyrds.pixeldungeon.windows.WndShopOptions",
+        WndChooseWay   = "com.watabou.pixeldungeon.windows.WndChooseWay",
+        WndBag         = "com.watabou.pixeldungeon.windows.WndBag",
+        WndLibrary     = "com.nyrds.pixeldungeon.windows.WndLibrary",
+        WndPortal      = "com.nyrds.pixeldungeon.windows.WndPortal",
+        WndPortalReturn = "com.nyrds.pixeldungeon.windows.WndPortalReturn",
+        Image          = "com.watabou.noosa.Image",
+        Banner         = "com.watabou.pixeldungeon.ui.Banner"
+    },
+
+    Actors = {
+        ScriptedActor = "com.nyrds.pixeldungeon.mechanics.actors.ScriptedActor"
+    },
+}
+
+local GameScene = luajava.bindClass("com.watabou.pixeldungeon.scenes.GameScene")
+local Dungeon   = luajava.bindClass("com.watabou.pixeldungeon.Dungeon")
+local Camera    = luajava.bindClass("com.watabou.noosa.Camera")
+
+local MobAi = luajava.bindClass("com.nyrds.pixeldungeon.ai.MobAi")
+
+local Fraction = luajava.bindClass("com.watabou.pixeldungeon.actors.mobs.Fraction")
+
+local Position = "com.nyrds.pixeldungeon.utils.Position"
+
+local CharsList = luajava.newInstance("com.nyrds.pixeldungeon.utils.CharsList")
+
+
+local wandOfBlink = luajava.newInstance("com.watabou.pixeldungeon.items.wands.WandOfBlink")
+local wandOfTelekinesis = luajava.newInstance("com.watabou.pixeldungeon.items.wands.WandOfTelekinesis")
+local wandOfFirebolt = luajava.newInstance("com.watabou.pixeldungeon.items.wands.WandOfFirebolt")
+
+local Wands = {
+    wandOfBlink = wandOfBlink,
+    wandOfTelekinesis = wandOfTelekinesis,
+    wandOfFirebolt = wandOfFirebolt
+}
+
+local ItemFactory     = luajava.bindClass("com.nyrds.pixeldungeon.items.common.ItemFactory")
+local MobFactory      = luajava.bindClass("com.nyrds.pixeldungeon.mobs.common.MobFactory")
+local EffectsFactory  = luajava.bindClass("com.nyrds.pixeldungeon.effects.EffectsFactory")
+local LevelObjectsFactory  = luajava.bindClass("com.nyrds.pixeldungeon.levels.objects.LevelObjectsFactory")
+local SpellFactory = luajava.bindClass("com.nyrds.pixeldungeon.mechanics.spells.SpellFactory")
+local MobSpawner = luajava.bindClass("com.nyrds.pixeldungeon.mobs.common.MobSpawner")
+
+local Effects = luajava.bindClass("com.watabou.pixeldungeon.effects.Effects")
+
+local Tweeners = {
+    PosTweener  = luajava.bindClass("com.watabou.noosa.tweeners.PosTweener"),
+    JumpTweener = luajava.bindClass("com.watabou.noosa.tweeners.JumpTweener"),
+    AlphaTweener = luajava.bindClass("com.watabou.noosa.tweeners.AlphaTweener")
+}
+
+local Sfx = {
+    CellEmitter = luajava.bindClass("com.watabou.pixeldungeon.effects.CellEmitter"),
+    BlobEmitter = luajava.bindClass("com.watabou.pixeldungeon.effects.BlobEmitter"),
+    Emitter = luajava.bindClass("com.watabou.noosa.particles.Emitter"),
+    FlameParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.FlameParticle"),
+    SnowParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.SnowParticle"),
+    ShaftParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.ShaftParticle"),
+    Speck = luajava.bindClass("com.watabou.pixeldungeon.effects.Speck"),
+    ShadowParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.ShadowParticle"),
+    SpellSprite = luajava.bindClass("com.watabou.pixeldungeon.effects.SpellSprite"),
+    DarknessParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.DarknessParticle"),
+    EarthParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.EarthParticle"),
+    EnergyParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.EnergyParticle"),
+    FlowParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.FlowParticle"),
+    LeafParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.LeafParticle"),
+    PoisonParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.PoisonParticle"),
+    PurpleParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.PurpleParticle"),
+    SparkParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.SparkParticle"),
+    WebParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.WebParticle"),
+    WindParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.WindParticle"),
+    WoolParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.WoolParticle"),
+    BloodParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.BloodParticle"),
+    ElmoParticle = luajava.bindClass("com.watabou.pixeldungeon.effects.particles.ElmoParticle"),
+    MagicMissile = luajava.bindClass("com.watabou.pixeldungeon.effects.MagicMissile"),
+    SpellSprite = luajava.bindClass("com.watabou.pixeldungeon.effects.SpellSprite"),
+    DeathStroke= luajava.bindClass("com.nyrds.pixeldungeon.effects.DeathStroke"),
+    Wound = luajava.bindClass("com.watabou.pixeldungeon.effects.Wound"),
+    Splash = luajava.bindClass("com.watabou.pixeldungeon.effects.Splash"),
+    Flare = luajava.bindClass("com.watabou.pixeldungeon.effects.Flare"),
+    HighlightCell = luajava.bindClass("com.watabou.pixeldungeon.effects.HighlightCell")
+}
+
+local CharSprite      = luajava.bindClass("com.watabou.pixeldungeon.sprites.CharSprite")
+local Facilitations   = luajava.bindClass("com.watabou.pixeldungeon.Facilitations")
+local WandOfBlink     = luajava.bindClass("com.watabou.pixeldungeon.items.wands.WandOfBlink")
+local ScrollOfMagicMapping = luajava.bindClass("com.watabou.pixeldungeon.items.scrolls.ScrollOfMagicMapping")
+local Accessory       = luajava.bindClass("com.nyrds.pixeldungeon.items.accessories.Accessory")
+local GameControl     = luajava.bindClass("com.nyrds.pixeldungeon.utils.GameControl")
+local AlchemyPot      = luajava.bindClass("com.watabou.pixeldungeon.levels.features.AlchemyPot")
+local Badges = luajava.bindClass("com.watabou.pixeldungeon.Badges")
+local ItemUtils = luajava.bindClass("com.nyrds.pixeldungeon.items.ItemUtils")
+local Statistics = luajava.bindClass("com.watabou.pixeldungeon.Statistics")
+local Random = luajava.bindClass("com.watabou.utils.Random")
+local TerrainFlags = luajava.bindClass("com.watabou.pixeldungeon.levels.TerrainFlags")
+local LevelTools = luajava.bindClass("com.nyrds.pixeldungeon.levels.LevelTools")
+local SimpleWand = luajava.bindClass("com.watabou.pixeldungeon.items.wands.SimpleWand")
+local ChaosCommon = luajava.bindClass("com.nyrds.pixeldungeon.items.chaos.ChaosCommon")
+local Char = luajava.bindClass("com.watabou.pixeldungeon.actors.Char")
+local Utils = luajava.bindClass("com.watabou.pixeldungeon.utils.Utils")
+local ResultDescriptions = luajava.bindClass("com.watabou.pixeldungeon.ResultDescriptions")
+local ResultReason = luajava.bindClass("com.watabou.pixeldungeon.ResultDescriptions$Reason")
+local Electricity = luajava.bindClass("com.watabou.pixeldungeon.levels.traps.Electricity")
+local Lightning = luajava.bindClass("com.watabou.pixeldungeon.effects.Lightning")
+
+local RPD = {
+    RemixedDungeon = RemixedDungeon,
+    GameLoop = GameLoop,
+    GameScene = GameScene,
+    Dungeon = Dungeon,
+    DungeonGenerator = DungeonGenerator,
+    PathFinder = PathFinder,
+    CharSprite = CharSprite,
+    Facilitations = Facilitations,
+    WandOfBlink = WandOfBlink,
+    ScrollOfMagicMapping = ScrollOfMagicMapping,
+    Accessory = Accessory,
+    GameControl = GameControl,
+    AlchemyPot = AlchemyPot,
+    Badges = Badges,
+    PlagueDoctorMask = luajava.bindClass("com.nyrds.pixeldungeon.items.accessories.PlagueDoctorMask"),
+    Statistics = Statistics,
+    Random = Random,
+    TerrainFlags = TerrainFlags,
+    Effects = Effects,
+    ItemUtils = ItemUtils,
+    -- NB: never eagerly bind item classes whose static init CONSTRUCTS items
+    -- (e.g. PotionOfHealing builds pseudoPotion): boot-time bindClass runs
+    -- their clinit before the item status handlers exist and NPEs the title.
+    Devour = luajava.bindClass("com.nyrds.pixeldungeon.effects.Devour"),
+    DungeonTilemap = luajava.bindClass("com.watabou.pixeldungeon.DungeonTilemap"),
+    ModdingMode = luajava.bindClass("com.nyrds.util.ModdingMode"),
+    ModQuirks = ModQuirks,
+    Util = Util,
+    ModdingBase = ModdingBase,
+    CommonActions = CommonActions,
+    CharsList = CharsList,
+    CharUtils = CharUtils,
+    MobSpawner = MobSpawner,
+    LevelTools = LevelTools,
+    SimpleWand = SimpleWand,
+    ChaosCommon = ChaosCommon,
+    StringsManager = StringsManager,
+    Char = Char,
+    -- RPD.Utils is LuaUtils; java watabou Utils rides under JavaUtils
+    JavaUtils = Utils,
+    ResultDescriptions = ResultDescriptions,
+    ResultReason = ResultReason,
+    Electricity = Electricity,
+    Lightning = Lightning,
+    Utils = luajava.bindClass("com.nyrds.lua.LuaUtils"),
+    QuickSlot = luajava.bindClass("com.watabou.pixeldungeon.ui.QuickSlot"),
+    BackpackMode = BackpackMode,
+    Treasury = Treasury,
+
+    System = {
+        Input = luajava.bindClass("com.nyrds.platform.app.Input")
+    },
+
+    Slots = {
+        none         = "NONE",
+        weapon       = "WEAPON",
+        armor        = "ARMOR",
+        leftHand     = "LEFT_HAND",
+        artifact     = "ARTIFACT",
+        leftArtifact = "LEFT_ARTIFACT"
+    },
+
+    SystemTime = luajava.bindClass("com.watabou.utils.SystemTime"),
+    Terrain = luajava.bindClass("com.watabou.pixeldungeon.levels.Terrain"),
+    Actor = luajava.bindClass("com.watabou.pixeldungeon.actors.Actor"),
+    MobFactory = MobFactory,
+    ItemFactory = ItemFactory,
+    LevelObjectsFactory = LevelObjectsFactory,
+    EffectsFactory = EffectsFactory,
+    SpellFactory = SpellFactory,
+    AlchemyRecipes = luajava.bindClass("com.nyrds.pixeldungeon.alchemy.AlchemyRecipes"),
+    Journal = luajava.bindClass("com.watabou.pixeldungeon.Journal"),
+    Slot = luajava.bindClass("com.watabou.pixeldungeon.actors.hero.Belongings$Slot"),
+    Chasm = luajava.bindClass("com.watabou.pixeldungeon.levels.features.Chasm"),
+    Mob   = luajava.bindClass("com.watabou.pixeldungeon.actors.mobs.Mob"),
+    Heap  = luajava.bindClass("com.watabou.pixeldungeon.items.Heap"),
+
+    Ballistica = Ballistica,
+    Challenges = Challenges,
+
+    GLog = GLog,
+    MobAi = MobAi,
+    Fraction = Fraction,
+
+    Buffs = Buffs,
+    BuffIndicator = luajava.bindClass("com.watabou.pixeldungeon.ui.BuffIndicator"),
+
+
+    Actions = actions,
+
+    Blobs = Blobs,
+    PseudoBlobs = PseudoBlobs,
+
+    Tweeners = Tweeners,
+
+    Sfx = Sfx,
+
+    Objects = Objects,
+
+    Wands = Wands,
+
+    new = function(class, ...)
+        return luajava.newInstance(class, ...)
+    end,
+
+    affectBuff = function (chr, buffClass, duration)
+        return Buffs.Buff:affect(chr, buffClass, duration)
+    end,
+
+    permanentBuff = function (chr, buffClass)
+        return Buffs.Buff:permanent(chr, buffClass)
+    end,
+
+    removeBuff = function (chr, buffClass)
+        Buffs.Buff:detach(chr, buffClass)
+    end,
+
+    placePseudoBlob = function (blobClass, cell)
+        blobClass:affect(cell)
+    end,
+
+    ---@param cell number
+    ---@param amount number
+    placeBlob = function (blobClass, cell, amount, level)
+        level = level or Dungeon.level
+
+        if not Dungeon.level then
+            Blobs.Blob:seed(level, cell, amount, blobClass )
+        else
+            GameScene:add( Blobs.Blob:seed(level, cell, amount, blobClass ) )
+        end
+    end,
+
+    playSound = function(sound)
+        Sample.INSTANCE:play(sound)
+    end,
+
+    playMusic = function(music, looped)
+        Music.INSTANCE:play(music, looped)
+    end,
+
+    stopMusic = function()
+        Music.INSTANCE:stop()
+    end,
+
+    textById = function(id)
+        return StringsManager:maybeId(id)
+    end,
+
+    glog = function (text,...)
+        GLog:i(tostring(text),{...})
+    end,
+
+    glogp = function (text,...)
+        GLog:p(tostring(text),{...})
+    end,
+
+    glogn = function (text,...)
+        GLog:n(tostring(text),{...})
+    end,
+
+    debug = function (text,...)
+        GLog:toFile(tostring(text),{...})
+        --GLog:n(tostring(text),{...})
+    end,
+
+    getXy = function (chr)
+        local pos = chr:getPos()
+        return {Dungeon.level:cellX(pos),Dungeon.level:cellY(pos)}
+    end,
+
+    setAi = function(mob, state)
+        mob:setState(MobAi:getStateByTag(state))
+    end,
+
+    blinkTo = function(mob, target)
+        wandOfBlink:mobWandUse(mob, target)
+    end,
+
+    teleportTo = function(levelId, x, y)
+        local position = luajava.newInstance(Position,levelId, x, y)
+        Dungeon.hero:teleportTo(position)
+    end,
+
+    newPosition = function(levelId, x, y)
+        return luajava.newInstance(Position, levelId, x, y)
+    end,
+
+    ---@param handler function
+    chooseOption = function(handler, title, text, ...)
+        assert(type(handler)=='function', "chooseOption handler must be a function")
+
+        local wnd = luajava.newInstance(Objects.Ui.WndOptionsLua, handler, title, text, {...})
+        GameScene:show(wnd)
+    end,
+
+    showStoryWindow = function(story_id)
+        local wnd = luajava.newInstance(Objects.Ui.WndStory,story_id)
+        GameScene:show(wnd)
+    end,
+
+    showTradeWindow = function(shopkeeper,client)
+        local wnd = luajava.newInstance(Objects.Ui.WndShopOptions, shopkeeper, client )
+        GameScene:show(wnd)
+    end,
+
+    showBuyWindow = function(shopkeeper,client)
+        local wnd = luajava.newInstance(Objects.Ui.WndShopOptions, shopkeeper, client )
+        wnd:showBuyWnd()
+    end,
+
+    showSellWindow = function(shopkeeper,client)
+        local wnd = luajava.newInstance(Objects.Ui.WndShopOptions, shopkeeper, client )
+        wnd:showSellWnd()
+    end,
+
+    showQuestWindow = function(chr, text_id)
+        local text = StringsManager:maybeId(text_id)
+        local wnd = luajava.newInstance(Objects.Ui.WndQuest,chr,text)
+        --chr:say(text)
+        GameScene:show(wnd)
+    end,
+
+    zapEffect = function (from, to, zapEffect)
+        GameScene:zapEffect(from, to, zapEffect)
+    end,
+
+    topEffect = function(cell,effectName)
+        return GameScene:clipEffect(cell,1,effectName)
+    end,
+
+    objectEffect = function(cell,effectName)
+        return GameScene:clipEffect(cell,2,effectName)
+    end,
+
+    bottomEffect = function(cell,effectName)
+        return GameScene:clipEffect(cell,0,effectName)
+    end,
+
+    speckEffectFactory = function (particleType, evolutionType)
+        return Sfx.Speck:factory(particleType, evolutionType)
+    end,
+
+    pourSpeck = function (emitter, factory, interval)
+        emitter:pour(factory, interval)
+        emitter.autoKill = false
+    end,
+
+    attachMoveTweener = function(img,dx,dy,time)
+        Tweeners.PosTweener:attachTo(img,dx,dy,time)
+    end,
+
+    attachJumpTweener = function(chr, target, height, time)
+        Tweeners.JumpTweener:attachTo(chr:getSprite(), target, height, time)
+    end,
+
+    carcass = function(mobClass)
+        local mob = MobFactory:createMob(mobClass, json.encode(mobDesc or {_=""}))
+        return mob:carcass()
+    end,
+
+    item = function(itemClass, quantity)
+        quantity = quantity or 1
+        local item = ItemFactory:itemByName(itemClass)
+        item:quantity(quantity)
+        return Treasury:get():check(item)
+    end,
+
+    createItem = function(itemClass, itemDesc)
+        local item = ItemFactory:createItem(itemClass, json.encode(itemDesc or {_=""}))
+        assert(item, "can't create item "..itemClass)
+        return Treasury:get():check(item)
+    end,
+
+    removeAllItems = function(chr)
+        local items = { "weapon", "armor", "leftHand", "ring1", "ring2" }
+        local belongings = chr:getBelongings()
+
+        for _, slot in pairs(items) do
+            local item = belongings[slot]
+            item:removeItemFrom(chr)
+        end
+
+        local itemsToRemove = {}
+
+        for i = 0, belongings.backpack.items:size()-1 do
+            table.insert(itemsToRemove,belongings.backpack.items:get(i))
+        end
+
+        for _,item in pairs(itemsToRemove) do
+            item:removeItemFrom(chr)
+        end
+    end,
+
+    spawnMob = function(mobClass, cell, mobDesc)
+        -- an empty lua table encodes to "[]" and createMob needs an object
+        if mobDesc ~= nil and next(mobDesc) == nil then
+            mobDesc = nil
+        end
+        local mob = MobFactory:createMob(mobClass, json.encode(mobDesc or {_=""}))
+        mob:setPos(cell)
+        assert(mob, "can't spawn mob "..mobClass)
+        Dungeon.level:spawnMob(mob)
+        return mob
+    end,
+
+    levelObject = function(objectClass, cell)
+        local object = LevelObjectsFactory:objectByName(objectClass)
+        assert(object, "can't create object "..objectClass)
+        object:setPos(cell)
+        Dungeon.level:addLevelObject(object)
+        return object
+    end,
+
+    createLevelObject = function(desc, cell)
+        local level = Dungeon.level
+
+        if not level:cellValid(cell) then
+            local error_msg = "Trying to create %s on invalid cell %d"
+            GLog:toFile(error_msg,{desc, cell})
+            GLog:n(error_msg,{desc, cell})
+
+            return nil
+        end
+
+        desc.x = Dungeon.level:cellX(cell)
+        desc.y = Dungeon.level:cellY(cell)
+
+        local object = LevelObjectsFactory:createObject(Dungeon.level, json.encode(desc))
+
+        Dungeon.level:addLevelObject(object)
+        return object
+    end,
+
+    forCellsAround = function(cell, action)
+        local level = Dungeon.level
+
+        local x = level:cellX(cell)
+        local y = level:cellY(cell)
+
+        -- border cells are real map cells: the 2D cellValid() drops the whole
+        -- outer ring, which made edge gold veins unmineable (beta.13 report)
+        for i = x - 1, x + 1 do
+            for j = y - 1, y + 1 do
+                if (i~=x or j~=y) and i >= 0 and j >= 0
+                    and i < level:getWidth() and j < level:getHeight() then
+                    action(level:cell(i,j))
+                end
+            end
+        end
+    end,
+
+    forEachCellOnRay = function(from,to,magic,hitChars,hitObjects, action )
+        GLog:i(tostring(from) .." " ..tostring(to).." "..tostring(magic).." "..tostring(hitChars).." "..tostring(hitObjects).." "..tostring(action),{""})
+        local tgt = Ballistica:cast(from, to, magic, hitChars, hitObjects)
+
+        for i=2, Ballistica.trace.length do
+            local cell = Ballistica.trace[i]
+            action(cell)
+            if cell == tgt then
+                break
+            end
+        end
+
+        return tgt
+    end,
+
+    shakeCamera = function(time, power)
+        Camera.main:shake(time, power)
+    end,
+
+    checkBadge = function(badgeName)
+        return Badges:isUnlocked(Badges.Badge:valueOf(badgeName))
+    end,
+
+    packEntity = function(entity)
+        local bundle = luajava.newInstance(Bundle)
+        bundle:putEntity("entity",entity)
+        return bundle:serialize()
+    end,
+
+    unpackEntity = function(str)
+        return luajava.newInstance(Bundle,str):get("entity")
+    end,
+
+    toLua = function(entity)
+        local bundle = luajava.newInstance(Bundle)
+        bundle:putEntity("entity",entity)
+        return json.decode(bundle:serialize())["entity"]
+    end,
+
+    fromLua = function(entityDesc)
+        local jsonDesc = json.encode({entity = entityDesc})
+        return luajava.newInstance(Bundle, jsonDesc):get("entity")
+    end,
+
+    format = function(fmt, ...)
+        local args, order = {...}, {}
+
+        fmt = StringsManager:maybeId(fmt)
+
+        fmt = fmt:gsub('%%(%d+)%$', function(i)
+            table.insert(order, args[tonumber(i)])
+            return '%'
+        end)
+
+
+        if #order > 0 then
+            return string.format(fmt, table.unpack(order))
+        else
+            return string.format(fmt, table.unpack(args))
+        end
+    end,
+
+    lua2json = function(entity)
+        return json.encode({data = entity})
+    end,
+
+    oneOf = function(items)
+        local randomIndex = math.random(#items)
+        return items[randomIndex]
+    end
+}
+
+RPD.creteItem = RPD.createItem -- for old Epic
+
+return RPD
+
+
+
+
+

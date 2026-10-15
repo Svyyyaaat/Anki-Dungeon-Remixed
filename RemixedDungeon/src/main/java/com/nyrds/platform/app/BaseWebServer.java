@@ -1,0 +1,1474 @@
+package com.nyrds.platform.app;
+
+import com.nyrds.pixeldungeon.game.GameLoop;
+import com.nyrds.platform.storage.FileSystem;
+import com.nyrds.util.ModdingMode;
+import com.watabou.pixeldungeon.Dungeon;
+import com.watabou.pixeldungeon.utils.GLog;
+import com.watabou.pixeldungeon.utils.Utils;
+import fi.iki.elonen.NanoHTTPD;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.function.Function;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+/**
+ * Base WebServer implementation that provides common functionality for all platforms.
+ * Platform-specific implementations should extend this class and implement platform-specific functionality.
+ */
+public abstract class BaseWebServer extends NanoHTTPD {
+    protected static BaseWebServer instance = null;
+    protected String serverAddress = null;
+    protected boolean started = false;
+
+    // Debug endpoint routing map
+    private static final Map<String, Function<NanoHTTPD.IHTTPSession, NanoHTTPD.Response>> debugEndpoints = new HashMap<>();
+
+    // platform layers may add endpoints for stuff main cannot see (android PackageManager etc)
+    public static void registerDebugEndpoint(String path, Function<NanoHTTPD.IHTTPSession, NanoHTTPD.Response> handler) {
+        debugEndpoints.put(path, handler);
+    }
+
+    static {
+        // Initialize debug endpoint routing map
+        debugEndpoints.put("/debug/change_level", DebugEndpoints::handleDebugChangeLevel);
+        debugEndpoints.put("/debug/create_mob", DebugEndpoints::handleDebugCreateMob);
+        debugEndpoints.put("/debug/get_available_spells", DebugEndpoints::handleDebugGetAvailableSpells);
+        debugEndpoints.put("/debug/cast_spell_on_target", DebugEndpoints::handleDebugCastSpellOnTarget);
+        debugEndpoints.put("/debug/cast_spell", DebugEndpoints::handleDebugCastSpell);
+        debugEndpoints.put("/debug/cast_spell_at_mob", DebugEndpoints::handleDebugCastSpellOnMob);
+        debugEndpoints.put("/debug/get_recent_logs", DebugEndpoints::handleDebugGetRecentLogs);
+        debugEndpoints.put("/debug/dump_init_state", DebugEndpoints::handleDebugDumpInitState);
+        debugEndpoints.put("/debug/create_item", DebugEndpoints::handleDebugCreateItem);
+        debugEndpoints.put("/debug/change_map", DebugEndpoints::handleDebugChangeMap);
+        debugEndpoints.put("/debug/give_item", DebugEndpoints::handleDebugGiveItem);
+        debugEndpoints.put("/debug/item_info", DebugEndpoints::handleDebugItemInfo);
+        debugEndpoints.put("/debug/use_item", DebugEndpoints::handleDebugUseItem);
+        debugEndpoints.put("/debug/char_flags", DebugEndpoints::handleDebugCharFlags);
+        debugEndpoints.put("/debug/char_desc", DebugEndpoints::handleDebugCharDesc);
+        debugEndpoints.put("/debug/journal", DebugEndpoints::handleDebugJournal);
+        debugEndpoints.put("/debug/set_undead", DebugEndpoints::handleDebugSetUndead);
+        debugEndpoints.put("/debug/cell_info", DebugEndpoints::handleDebugCellInfo);
+        debugEndpoints.put("/debug/object_script", DebugEndpoints::handleObjectScript);
+        debugEndpoints.put("/debug/spawn_trap", DebugEndpoints::handleDebugSpawnTrap);
+        debugEndpoints.put("/debug/spawn_at", DebugEndpoints::handleDebugSpawnAt);
+        debugEndpoints.put("/debug/start_game", DebugEndpoints::handleDebugStartGame);
+        debugEndpoints.put("/debug/continue_game", DebugEndpoints::handleDebugContinueGame);
+        debugEndpoints.put("/debug/get_game_state", DebugEndpoints::handleDebugGetGameState);
+        debugEndpoints.put("/debug/get_hero_info", DebugEndpoints::handleDebugGetHeroInfo);
+        debugEndpoints.put("/debug/get_level_info", DebugEndpoints::handleDebugGetLevelInfo);
+        debugEndpoints.put("/debug/get_mobs", DebugEndpoints::handleDebugGetMobs);
+        debugEndpoints.put("/debug/get_items", DebugEndpoints::handleDebugGetItems);
+        debugEndpoints.put("/debug/get_inventory", DebugEndpoints::handleDebugGetInventory);
+        debugEndpoints.put("/debug/set_hero_stat", DebugEndpoints::handleDebugSetHeroStat);
+        debugEndpoints.put("/debug/kill_mob", DebugEndpoints::handleDebugKillMob);
+        debugEndpoints.put("/debug/remove_item", DebugEndpoints::handleDebugRemoveItem);
+        debugEndpoints.put("/debug/reset_level", DebugEndpoints::handleDebugResetLevel);
+        debugEndpoints.put("/debug/get_dungeon_seed", DebugEndpoints::handleDebugGetDungeonSeed);
+        debugEndpoints.put("/debug/run_lua", DebugEndpoints::handleDebugRunLua);
+        debugEndpoints.put("/debug/set_dungeon_seed", DebugEndpoints::handleDebugSetDungeonSeed);
+        debugEndpoints.put("/debug/get_tile_info", DebugEndpoints::handleDebugGetTileInfo);
+        debugEndpoints.put("/debug/handle_cell", DebugEndpoints::handleDebugHandleCell);
+        debugEndpoints.put("/debug/get_mob_positions", DebugEndpoints::handleDebugGetMobPositions);
+        debugEndpoints.put("/debug/get_hero_position", DebugEndpoints::handleDebugGetHeroPosition);
+        debugEndpoints.put("/debug/move_hero", DebugEndpoints::handleDebugMoveHero);
+        debugEndpoints.put("/debug/hero_attack", DebugEndpoints::handleDebugHeroAttack);
+        debugEndpoints.put("/debug/wait_ticks", DebugEndpoints::handleDebugWaitTicks);
+        debugEndpoints.put("/debug/go_to_level", DebugEndpoints::handleDebugGoToLevel);
+        debugEndpoints.put("/debug/list_levels", DebugEndpoints::handleDebugListLevels);
+        debugEndpoints.put("/debug/get_exits", DebugEndpoints::handleDebugGetExits);
+        debugEndpoints.put("/debug/get_entrances", DebugEndpoints::handleDebugGetEntrances);
+        debugEndpoints.put("/debug/descend_to", DebugEndpoints::handleDebugDescendTo);
+        debugEndpoints.put("/debug/ascend", DebugEndpoints::handleDebugAscend);
+        debugEndpoints.put("/debug/reload_game", DebugEndpoints::handleDebugReloadGame);
+        debugEndpoints.put("/debug/alchemy/list_recipes", DebugEndpoints::handleAlchemyListRecipes);
+        debugEndpoints.put("/debug/alchemy/get_recipe", DebugEndpoints::handleAlchemyGetRecipe);
+        debugEndpoints.put("/debug/alchemy/craft", DebugEndpoints::handleAlchemyCraft);
+        debugEndpoints.put("/debug/alchemy/get_inventory", DebugEndpoints::handleAlchemyGetInventory);
+        debugEndpoints.put("/debug/alchemy/give_item", DebugEndpoints::handleAlchemyGiveItem);
+        debugEndpoints.put("/debug/screenshot", DebugEndpoints::handleDebugScreenshot);
+        debugEndpoints.put("/debug/toggle_ui", DebugEndpoints::handleDebugToggleUI);
+        debugEndpoints.put("/debug/open_window", DebugEndpoints::handleDebugOpenWindow);
+        debugEndpoints.put("/debug/ui_slots", DebugEndpoints::handleDebugUiSlots);
+        debugEndpoints.put("/debug/reveal_map", DebugEndpoints::handleDebugRevealMap);
+        debugEndpoints.put("/debug/get_warehouse_rooms", DebugEndpoints::handleDebugGetWarehouseRooms);
+        debugEndpoints.put("/debug/observe", DebugEndpoints::handleDebugObserve);
+        debugEndpoints.put("/debug/get_map", DebugEndpoints::handleDebugGetMap);
+        debugEndpoints.put("/debug/hero_status", DebugEndpoints::handleDebugHeroStatus);
+        debugEndpoints.put("/debug/move_to", DebugEndpoints::handleDebugMoveTo);
+        debugEndpoints.put("/debug/remote/spawn", DebugEndpoints::handleRemoteSpawn);
+        debugEndpoints.put("/debug/remote/possess", DebugEndpoints::handleRemotePossess);
+        debugEndpoints.put("/debug/remote/release", DebugEndpoints::handleRemoteRelease);
+        debugEndpoints.put("/debug/remote/list", DebugEndpoints::handleRemoteList);
+        debugEndpoints.put("/debug/char_status", DebugEndpoints::handleCharStatus);
+        // test endpoints: drive the pet order flow and probe AI-state survival of damage
+        debugEndpoints.put("/debug/order_pet", DebugEndpoints::handleDebugOrderPet);
+        debugEndpoints.put("/debug/make_pet", DebugEndpoints::handleDebugMakePet);
+        debugEndpoints.put("/debug/interact", DebugEndpoints::handleDebugInteract);
+        debugEndpoints.put("/debug/force_attack", DebugEndpoints::handleDebugForceAttack);
+        debugEndpoints.put("/debug/affect_buff", DebugEndpoints::handleDebugAffectBuff);
+        debugEndpoints.put("/debug/level_up", DebugEndpoints::handleDebugLevelUp);
+        debugEndpoints.put("/debug/test_damage", DebugEndpoints::handleDebugTestDamage);
+        debugEndpoints.put("/debug/test_equip", DebugEndpoints::handleDebugTestEquip);
+        debugEndpoints.put("/debug/mob_brain", DebugEndpoints::handleDebugMobBrain);
+        debugEndpoints.put("/debug/force_zap", DebugEndpoints::handleDebugForceZap);
+        debugEndpoints.put("/debug/lua_eval", DebugEndpoints::handleDebugLuaEval);
+    }
+
+    public static boolean isRunning() {
+        return instance != null && instance.started;
+    }
+
+    // caveman: one gate for every client-supplied resource path.
+    // mod-relative paths only. kills ".." segments, absolute paths,
+    // windows drives, backslashes. empty path = root dir, that is fine.
+    public static boolean isSafeResourcePath(String path) {
+        if (path == null) {
+            return false;
+        }
+        if (path.isEmpty()) {
+            return true;
+        }
+        if (path.indexOf('\0') >= 0 || path.indexOf('\\') >= 0) {
+            return false;
+        }
+        if (new File(path).isAbsolute() || path.matches("^[A-Za-z]:.*")) {
+            return false;
+        }
+        for (String segment : path.split("/")) {
+            if (segment.equals("..")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // caveman: resolved file must stay inside external storage root.
+    // belt-and-braces for write endpoints, catches symlink games too.
+    protected static boolean isInsideStorageRoot(File file) {
+        try {
+            String root = FileSystem.getExternalStorageFile("").getCanonicalPath();
+            return file.getCanonicalPath().startsWith(root + File.separator);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    protected static Response forbiddenPath() {
+        return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
+            "{\"error\":\"Illegal path\"}");
+    }
+
+    public static String getServerAddress() {
+        if (instance != null && instance.serverAddress != null) {
+            return instance.serverAddress;
+        }
+        return "http://localhost:8080"; // Default address
+    }
+
+    /**
+     * Check if the game is ready to handle requests.
+     * Platform-specific implementations should provide this.
+     */
+    public abstract boolean isReady();
+
+    public BaseWebServer(int port) {
+        super(port);
+        instance = this;
+
+        // Try to get the IP address
+        try {
+            for (NetworkInterface networkInterface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                Enumeration<InetAddress> addrs = networkInterface.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    InetAddress addr = addrs.nextElement();
+                    // Skip loopback addresses
+                    if (!addr.isLoopbackAddress() && addr.getHostAddress().indexOf(':') == -1) {
+                        serverAddress = "http://" + addr.getHostAddress() + ":" + port;
+                        GLog.debug("WebServer address: " + serverAddress);
+                        break;
+                    }
+                }
+                if (serverAddress != null) {
+                    break;
+                }
+            }
+        } catch (SocketException e) {
+            GLog.debug("Failed to get IP address: " + e.getMessage());
+        }
+
+        // Fallback to localhost
+        if (serverAddress == null) {
+            serverAddress = "http://localhost:" + port;
+        }
+    }
+
+    @Override
+    public void start() throws IOException {
+        if (!started) {
+            super.start();
+            started = true;
+            onServerStarted();
+        }
+    }
+
+    /**
+     * Called when the server is successfully started
+     */
+    protected abstract void onServerStarted();
+
+    /**
+     * Check if a path represents a directory for the current mod
+     */
+    protected abstract boolean isDirectory(String path);
+
+    /**
+     * Generate the root page HTML
+     */
+    protected String serveRoot() {
+        return generateHtmlWithTemplate("root_template.html",
+            "{{GAME_VERSION}}", Utils.format("%s (%d)", GameLoop.version, GameLoop.versionCode),
+            "{{MOD_INFO}}", Utils.format("%s (%d)", ModdingMode.activeMod(), ModdingMode.activeModVersion()),
+            "{{LEVEL_INFO}}", Dungeon.level != null ? Utils.format("<p>Level: %s</p>", Dungeon.level.levelId) : "<p>standalone mode</p>");
+    }
+
+    /**
+     * Generate the file listing page HTML
+     */
+    protected String serveList() {
+        StringBuilder dirContent = new StringBuilder();
+        listDir(dirContent, "");
+
+        return generateHtmlWithTemplate("list_template.html",
+            "{{MOD_NAME}}", htmlEscape(ModdingMode.activeMod()),
+            "{{DIRECTORY_CONTENTS}}", dirContent.toString());
+    }
+
+    /**
+     * Generate HTML for directory listing page
+     */
+    protected String generateDirectoryListing(String directoryPath) {
+        // Generate up one level link
+        String upOneLevelLink = "";
+        if (!directoryPath.isEmpty()) {
+            String upOneLevel = directoryPath.contains("/") ? directoryPath.substring(0, directoryPath.lastIndexOf("/")) : "";
+            if (upOneLevel.isEmpty()) {
+                upOneLevelLink = "<p><a href=\"/list\">..</a></p>";
+            } else {
+                upOneLevelLink = Utils.format("<p><a href=\"/fs/%s/\">..</a></p>", getEncodedPath(upOneLevel));
+            }
+        }
+
+        // Generate directory listing content
+        StringBuilder dirListing = new StringBuilder();
+
+        // List directory contents with directories first
+        String[] contents = listDirectoryContents(directoryPath);
+
+        if (contents != null) {
+            // Separate directories and files
+            List<String> directories = new ArrayList<>();
+            List<String> files = new ArrayList<>();
+
+            for (String name : contents) {
+                if (isDirectoryItem(directoryPath, name)) {
+                    directories.add(name);
+                } else {
+                    files.add(name);
+                }
+            }
+
+            // Sort directories and files separately
+            Collections.sort(directories);
+            Collections.sort(files);
+
+            // Add upload link for current directory
+            String uploadPath = directoryPath.isEmpty() ? "" : directoryPath;
+            if (!uploadPath.endsWith("/") && !uploadPath.isEmpty()) {
+                uploadPath += "/";
+            }
+            GLog.debug("Generating upload link for directory: '" + uploadPath + "'");
+            String encodedUploadPath;
+            try {
+                encodedUploadPath = URLEncoder.encode(uploadPath, "UTF-8");
+                GLog.debug("Encoded upload path: '" + encodedUploadPath + "' from original: '" + uploadPath + "'");
+            } catch (Exception e) {
+                encodedUploadPath = uploadPath; // Fallback if encoding fails
+                GLog.debug("Upload path encoding failed, using original: '" + uploadPath + "'");
+            }
+            dirListing.append(Utils.format("<p>📤 <a href=\"/upload?path=%s\">Upload files to this directory</a></p>", encodedUploadPath));
+
+            // List directories first
+            for (String name : directories) {
+                String fullPath = directoryPath.isEmpty() ? name : directoryPath + "/" + name;
+                dirListing.append(Utils.format("<p>📁 <a href=\"/fs/%s/\">%s/</a></p>",
+                    getEncodedPath(fullPath), htmlEscape(name)));
+            }
+            // Then list files
+            for (String name : files) {
+                String fullPath = directoryPath.isEmpty() ? name : directoryPath + "/" + name;
+                if (name.toLowerCase().endsWith(".json")) {
+                    // For JSON files, add both download and edit links
+                    String encodedPath2 = getEncodedPath(fullPath);
+                    dirListing.append(Utils.format("<p>📄 <a href=\"/fs/%s\">%s</a> (<a href=\"/edit-json?file=%s\">edit</a>)</p>",
+                        encodedPath2, htmlEscape(name), encodedPath2));
+                } else if (name.toLowerCase().endsWith(".lua")) {
+                    // For Lua files, add both download and edit links
+                    String encodedPath2 = getEncodedPath(fullPath);
+                    dirListing.append(Utils.format("<p>📄 <a href=\"/fs/%s\">%s</a> (<a href=\"/edit-lua?file=%s\">edit</a>) (<a href=\"/fs/%s?download=1\">download</a>)</p>",
+                        encodedPath2, htmlEscape(name), encodedPath2, encodedPath2));
+                } else if (name.toLowerCase().endsWith(".png") || name.toLowerCase().endsWith(".jpg") || name.toLowerCase().endsWith(".jpeg")) {
+                    // For image files, add download, preview, and edit links
+                    String encodedPath2 = getEncodedPath(fullPath);
+                    dirListing.append(Utils.format("<p>🖼️ <a href=\"/fs/%s\">%s</a> (<a href=\"/preview-image?file=%s\">preview</a>) (<a href=\"/edit-png?file=%s\">edit</a>)</p>",
+                        encodedPath2, htmlEscape(name), encodedPath2, encodedPath2));
+                } else {
+                    // For non-JSON files, just show download link
+                    dirListing.append(Utils.format("<p>📄 <a href=\"/fs/%s\">%s</a></p>",
+                        getEncodedPath(fullPath), htmlEscape(name)));
+                }
+            }
+        }
+
+        // Prepare replacements for the template
+        return generateHtmlWithTemplate("directory_listing_template.html",
+            "{{DIRECTORY_PATH}}", htmlEscape(directoryPath.isEmpty() ? "/" : directoryPath),
+            "{{ENCODED_UPLOAD_PATH}}", getEncodedPath(directoryPath),
+            "{{UP_ONE_LEVEL_LINK}}", upOneLevelLink,
+            "{{DIRECTORY_LISTING}}", dirListing.toString());
+    }
+
+    /**
+     * Generate the file upload form HTML
+     */
+    protected String serveUploadForm(String message, String currentPath) {
+        // Prepare message div
+        String messageDiv = "";
+        if (message != null && !message.isEmpty()) {
+            if (message.startsWith("ERROR:")) {
+                messageDiv = "<div class=\"error\">" + htmlEscape(message.substring(6)) + "</div>";
+            } else {
+                messageDiv = "<div class=\"success\">" + htmlEscape(message) + "</div>";
+            }
+        }
+
+        // Prepare upload form content
+        String uploadFormContent;
+        if (ModdingMode.activeMod().equals(ModdingMode.REMIXED)) {
+            uploadFormContent = "<div class=\"error\"><h2>Upload Disabled</h2><p>File upload to the main 'Remixed' mod is disabled for security reasons.</p></div>";
+        } else {
+            StringBuilder formContent = new StringBuilder();
+            formContent.append("<div class=\"upload-form\">");
+            formContent.append("<h2>Upload to Mod: ").append(htmlEscape(ModdingMode.activeMod())).append("</h2>");
+            if (currentPath != null && !currentPath.isEmpty()) {
+                formContent.append("<h3>Current Directory: ").append(htmlEscape(currentPath)).append("</h3>");
+            } else {
+                formContent.append("<h3>Current Directory: Root</h3>");
+            }
+            formContent.append("<form method=\"post\" action=\"/upload\" enctype=\"multipart/form-data\">");
+            // Make sure we handle null paths
+            String safePath = (currentPath != null) ? currentPath : "";
+            formContent.append("<input type=\"hidden\" name=\"path\" value=\"").append(htmlEscape(safePath)).append("\">");
+            formContent.append("<label for=\"file\">Select file to upload:</label><br>");
+            formContent.append("<input type=\"file\" name=\"file\" id=\"file\" required><br>");
+            formContent.append("<button type=\"submit\">Upload File</button>");
+            formContent.append("</form>");
+            formContent.append("</div>");
+            uploadFormContent = formContent.toString();
+        }
+
+        return generateHtmlWithTemplate("upload_form_template.html",
+            "{{MESSAGE_DIV}}", messageDiv,
+            "{{UPLOAD_FORM_CONTENT}}", uploadFormContent);
+    }
+
+    /**
+     * Generate the JSON editor page HTML
+     */
+    protected String serveJsonEditor(String filePath) {
+        String uploadPath = filePath.contains("/") ? filePath.substring(0, filePath.lastIndexOf("/")) : "";
+
+        return generateHtmlWithTemplate("json_editor_template.html",
+            "{{UPLOAD_PATH}}", htmlEscape(uploadPath),
+            "{{FILE_PATH}}", htmlEscape(filePath),
+            "{{ESCAPED_FILE_PATH}}", javaScriptEscape(filePath));
+    }
+
+    /**
+     * Generate the Lua editor page HTML
+     */
+    protected String serveLuaEditor(String filePath) {
+        String uploadPath = filePath.contains("/") ? filePath.substring(0, filePath.lastIndexOf("/")) : "";
+
+        return generateHtmlWithTemplate("lua_editor_template.html",
+            "{{UPLOAD_PATH}}", htmlEscape(uploadPath),
+            "{{FILE_PATH}}", htmlEscape(filePath),
+            "{{ESCAPED_FILE_PATH}}", javaScriptEscape(filePath));
+    }
+
+    /**
+     * Generate the "Not Found" error page HTML
+     */
+    protected String serveNotFound() {
+        return generateHtmlWithTemplate("not_found_template.html");
+    }
+
+    /**
+     * Helper to escape string for use in JavaScript
+     */
+    private static String javaScriptEscape(String str) {
+        if (str == null) {
+            return "";
+        }
+        return str.replace("\\", "\\\\")
+                  .replace("\"", "\\\"")
+                  .replace("'", "\\'")
+                  .replace("\n", "\\n")
+                  .replace("\r", "\\r")
+                  .replace("\t", "\\t")
+                  .replace("</", "<\\/"); // Prevent breaking out of script tags
+    }
+
+    /**
+     * caveman: every user-controlled string (query params, mod file names)
+     * lands in server-generated HTML - escape at the substitution point.
+     */
+    protected static String htmlEscape(String str) {
+        if (str == null) {
+            return "";
+        }
+        return str.replace("&", "&amp;")
+                  .replace("<", "&lt;")
+                  .replace(">", "&gt;")
+                  .replace("\"", "&quot;")
+                  .replace("'", "&#39;");
+    }
+
+    /**
+     * caveman: NanoHTTPD already parsed and decoded query (and form) params.
+     * The old hand-rolled per-route parsers double-decoded them.
+     */
+    protected static String queryParam(IHTTPSession session, String name) {
+        List<String> values = session.getParameters().get(name);
+        if (values == null || values.isEmpty() || values.get(0) == null) {
+            return "";
+        }
+        return values.get(0);
+    }
+
+    /**
+     * caveman: one body extractor for the save endpoints - raw body
+     * (postData), then URL-encoded query, then a first-chunk stream read.
+     * The editors always POST raw bodies; the fallbacks cover hand-rolled
+     * clients only.
+     */
+    protected String readPostBody(IHTTPSession session) {
+        Map<String, String> files = new HashMap<>();
+        try {
+            session.parseBody(files);
+        } catch (Exception e) {
+            GLog.debug("Error parsing request body: " + e.getMessage());
+        }
+        String body = files.get("postData");
+
+        if (body == null || body.isEmpty()) {
+            String query = session.getQueryParameterString();
+            if (query != null && !query.isEmpty()) {
+                try {
+                    body = URLDecoder.decode(query, "UTF-8");
+                } catch (Exception e) {
+                    body = query;
+                }
+            }
+        }
+
+        if (body == null || body.isEmpty()) {
+            try {
+                InputStream inputStream = session.getInputStream();
+                if (inputStream.markSupported()) {
+                    inputStream.mark(8192);
+                    byte[] buffer = new byte[8192];
+                    int bytesRead = inputStream.read(buffer);
+                    if (bytesRead > 0) {
+                        body = new String(buffer, 0, bytesRead, "UTF-8");
+                    } else {
+                        inputStream.reset();
+                    }
+                }
+            } catch (Exception e) {
+                GLog.debug("Error reading request body stream: " + e.getMessage());
+            }
+        }
+
+        return body;
+    }
+
+    /**
+     * caveman: file names land in a Content-Disposition quoted-string -
+     * quotes, backslashes and control chars would break the header.
+     */
+    protected static String headerFilename(String path) {
+        if (path == null) {
+            return "file";
+        }
+        return path.replace("\"", "_").replace("\\", "_").replaceAll("\\p{Cntrl}", "_");
+    }
+
+    /**
+     * Helper method to get encoded path for URL
+     */
+    protected static String getEncodedPath(String path) {
+        try {
+            return URLEncoder.encode(path, "UTF-8");
+        } catch (Exception e) {
+            return path; // Fallback if encoding fails
+        }
+    }
+
+    /**
+     * Generate HTML from a template with placeholder replacements
+     */
+    private String generateHtmlWithTemplate(String templateName, String... replacements) {
+        try {
+            // Use ModdingMode to access the template file from the current mod assets
+            InputStream inputStream = ModdingMode.getInputStream("html/" + templateName);
+
+            Scanner scanner = new Scanner(inputStream, "UTF-8").useDelimiter("\\A");
+            String template = scanner.hasNext() ? scanner.next() : "";
+
+            // Process replacements (they come in pairs: placeholder, replacement)
+            for (int i = 0; i < replacements.length; i += 2) {
+                template = template.replace(replacements[i], replacements[i + 1]);
+            }
+
+            return template;
+        } catch (Exception e) {
+            GLog.w("Failed to generate HTML from template: " + templateName + ", error: " + e.getMessage());
+            return "<html><body><h1>Template Error</h1><p>Failed to process template: " + templateName + "</p></body></html>";
+        }
+    }
+
+    /**
+     * List contents of a directory for the current mod
+     */
+    protected abstract String[] listDirectoryContents(String path);
+
+    /**
+     * Check if a specific item in a directory is itself a directory
+     */
+    protected abstract boolean isDirectoryItem(String parentPath, String itemName);
+
+    /**
+     * List directory contents with proper formatting
+     */
+    protected void listDir(StringBuilder msg, String path) {
+        GLog.debug("listDir called with path: '" + path + "'");
+
+        // Use the listDirectoryContents method to get direct children
+        String[] contents = listDirectoryContents(path);
+
+        GLog.debug("listDirectoryContents returned " + (contents != null ? contents.length : "null") + " items for path: '" + path + "'");
+
+        if (contents != null) {
+            // Separate directories and files
+            List<String> directories = new ArrayList<>();
+            List<String> files = new ArrayList<>();
+
+            for (String name : contents) {
+                GLog.debug("Processing item: '" + name + "' in path: '" + path + "'");
+                if (isDirectoryItem(path, name)) {
+                    directories.add(name);
+                    GLog.debug("Identified '" + name + "' as directory");
+                } else {
+                    files.add(name);
+                    GLog.debug("Identified '" + name + "' as file");
+                }
+            }
+
+            // Sort directories and files separately
+            Collections.sort(directories);
+            Collections.sort(files);
+
+            msg.append("<div class=\"file-list\">");
+
+            // List directories first
+            for (String name : directories) {
+                if(path.isEmpty()) {
+                    GLog.debug("Generating directory link for root directory: " + name);
+                    msg.append(Utils.format("<p>📁 <a href=\"/fs/%s/\">%s/</a></p>", getEncodedPath(name), htmlEscape(name)));
+                } else {
+                    String fullPath = path + "/" + name; // Proper path for accessing the directory
+                    msg.append(Utils.format("<p>📁 <a href=\"/fs/%s/\">%s/</a></p>", getEncodedPath(fullPath), htmlEscape(name)));
+                }
+            }
+
+            // Then list files
+            for (String name : files) {
+                String fullPath = path.isEmpty() ? name : path + "/" + name;
+                String encoded = getEncodedPath(fullPath);
+                String lower = name.toLowerCase();
+                if (lower.endsWith(".json")) {
+                    msg.append(Utils.format("<p>📄 <a href=\"/fs/%s\">%s</a> (<a href=\"/edit-json?file=%s\">edit</a>) (<a href=\"/fs/%s?download=1\">download</a>)</p>", encoded, htmlEscape(name), encoded, encoded));
+                } else if (lower.endsWith(".lua")) {
+                    msg.append(Utils.format("<p>📄 <a href=\"/fs/%s\">%s</a> (<a href=\"/edit-lua?file=%s\">edit</a>) (<a href=\"/fs/%s?download=1\">download</a>)</p>", encoded, htmlEscape(name), encoded, encoded));
+                } else if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+                    msg.append(Utils.format("<p>🖼️ <a href=\"/fs/%s\">%s</a> (<a href=\"/preview-image?file=%s\">preview</a>) (<a href=\"/edit-png?file=%s\">edit</a>)</p>", encoded, htmlEscape(name), encoded, encoded));
+                } else {
+                    msg.append(Utils.format("<p>📄 <a href=\"/fs/%s\">%s</a></p>", encoded, htmlEscape(name)));
+                }
+            }
+            msg.append("</div>");
+        } else {
+            GLog.debug("listDirectoryContents returned null for path: '" + path + "'");
+        }
+    }
+
+    protected Response serveFs(String file) {
+        GLog.debug("serveFs called with file: '" + file + "'");
+
+        if (!isSafeResourcePath(file)) {
+            GLog.w("Blocked path traversal attempt on /fs/: " + file);
+            return forbiddenPath();
+        }
+
+        // Remove trailing slash for directory checking (if present)
+        String cleanPath = file;
+        if (cleanPath.endsWith("/")) {
+            cleanPath = cleanPath.substring(0, cleanPath.length() - 1);
+            GLog.debug("Cleaned path from '" + file + "' to '" + cleanPath + "'");
+        }
+
+        // Handle directory requests
+        if (isDirectory(cleanPath)) {
+            GLog.debug("Serving directory: " + cleanPath);
+            try {
+                String html = generateDirectoryListing(cleanPath);
+                return newFixedLengthResponse(Response.Status.OK, "text/html", html);
+            } catch (Exception e) {
+                GLog.w("Error in generateDirectoryListing: " + e.getMessage());
+                return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/html", serveNotFound());
+            }
+        }
+        // Handle file download requests
+        else if(ModdingMode.isResourceExist(file)) {
+            GLog.debug("Resource exists check passed for: " + file);
+
+            // Double-check that it's not a directory to avoid attempting to read directory as file
+            boolean isDir = isDirectory(file);
+            GLog.debug("isDirectory(" + file + ") returned: " + isDir);
+
+            if (isDir) {
+                GLog.debug("Resource exists but is a directory, serving directory listing instead: " + file);
+                try {
+                    String html = generateDirectoryListing(file);
+                    return newFixedLengthResponse(Response.Status.OK, "text/html", html);
+                } catch (Exception e) {
+                    GLog.w("Error in generateDirectoryListing: " + e.getMessage());
+                    return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/html", serveNotFound());
+                }
+            } else {
+                GLog.debug("Serving file: " + file);
+                try {
+                    // For all other files, serve as download (this is the default for non-JSON/Lua files)
+                    // Actual download parameter handling will be done in the actual serve method that receives the session
+                    InputStream fis = ModdingMode.getInputStream(file);
+                    Response response = newChunkedResponse(Response.Status.OK, "application/octet-stream", fis);
+                    response.addHeader("Content-Disposition", "attachment; filename=\"" + headerFilename(file) + "\"");
+                    return response;
+                } catch (Exception e) {
+                    GLog.w("Error serving file " + file + ": " + e.getMessage());
+                    // If it's a directory causing the error, serve it as a directory instead
+                    if (e.toString().contains("Is a directory")) {
+                        GLog.debug("File access failed because it's a directory, serving as directory: " + file);
+                        try {
+                            String html = generateDirectoryListing(file);
+                            return newFixedLengthResponse(Response.Status.OK, "text/html", html);
+                        } catch (Exception dirE) {
+                            GLog.w("Error in fallback directory listing: " + dirE.getMessage());
+                            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/html", serveNotFound());
+                        }
+                    }
+                    // Otherwise return error
+                    return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/html", serveNotFound());
+                }
+            }
+        } else {
+            // File or directory doesn't exist
+            GLog.debug("File or directory not found: " + file);
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/html", serveNotFound());
+        }
+    }
+
+    protected Response handleFileUpload(IHTTPSession session) {
+        try {
+            GLog.debug("=== STARTING FILE UPLOAD PROCESS ===");
+            GLog.debug("Handling file upload, URI: " + session.getUri());
+
+            // Check if we're trying to upload to the main Remixed mod
+            if (ModdingMode.activeMod().equals(ModdingMode.REMIXED)) {
+                GLog.debug("Upload blocked - attempt to upload to main 'Remixed' mod");
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "text/html", serveUploadForm("ERROR: Upload to the main 'Remixed' mod is disabled for security reasons.", ""));
+            }
+
+            Map<String, String> files = new HashMap<>();
+            session.parseBody(files);
+
+            // Get the uploaded file - missing param used to NPE into a 500
+            List<String> fileParams = session.getParameters().get("file");
+            if (fileParams == null || fileParams.isEmpty() || fileParams.get(0) == null) {
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html",
+                    serveUploadForm("ERROR: No file selected.", ""));
+            }
+            String filename = fileParams.get(0);
+            GLog.debug("Uploaded filename: " + filename);
+
+            String path = "";
+
+            // Try to get path from parameters
+            if (session.getParameters().containsKey("path")) {
+                path = session.getParameters().get("path").get(0);
+                GLog.debug("Raw upload path from form parameter: '" + path + "'");
+            } else {
+                GLog.debug("No path parameter found in form submission");
+            }
+
+            // Handle null paths
+            if (path == null) {
+                path = "";
+                GLog.debug("Path was null, setting to empty string");
+            }
+
+            // Sanitize the path
+            // caveman: old code silently stripped ".." from path but never checked
+            // the filename - multipart filename carried the traversal instead.
+            // strict check on both, fail closed.
+            if (!isSafeResourcePath(path) || !isSafeResourcePath(filename)) {
+                GLog.w("Blocked illegal upload path: '" + path + "' file: '" + filename + "'");
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "text/html",
+                    serveUploadForm("ERROR: Illegal path.", ""));
+            }
+            path = path.replace("//", "/"); // Normalize path separators
+
+            // Ensure path ends with / if not empty
+            if (!path.isEmpty() && !path.endsWith("/")) {
+                path += "/";
+            }
+
+            GLog.debug("Final sanitized upload path: '" + path + "'");
+
+            // Create the full path for the file
+            String fullPath = ModdingMode.activeMod() + "/" + path + filename;
+            GLog.debug("Full file path: " + fullPath);
+
+            File destFile = FileSystem.getExternalStorageFile(fullPath);
+
+            if (!isInsideStorageRoot(destFile)) {
+                GLog.w("Blocked upload outside storage root: " + fullPath);
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "text/html",
+                    serveUploadForm("ERROR: Destination outside mod storage.", ""));
+            }
+
+            // Get the temporary uploaded file
+            String tempFilePath = files.get("file");
+            GLog.debug("Temp file path: " + tempFilePath);
+            if (tempFilePath == null) {
+                GLog.debug("No temp file found");
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html", serveUploadForm("ERROR: No file uploaded.", path));
+            }
+
+            // Move the file to the correct location
+            File tempFile = new File(tempFilePath);
+            GLog.debug("Destination file path: " + destFile.getAbsolutePath());
+
+            // Create directories if needed
+            File destDir = destFile.getParentFile();
+            GLog.debug("Destination directory: " + (destDir != null ? destDir.getAbsolutePath() : "null"));
+            if (destDir != null && !destDir.exists()) {
+                GLog.debug("Creating destination directory");
+                destDir.mkdirs();
+            }
+
+            // Copy the file
+            GLog.debug("Copying file from temp to destination");
+            try (FileOutputStream fos = new FileOutputStream(destFile)) {
+                byte[] buffer = new byte[4096];
+                int bytesRead;
+                try (InputStream is = new FileInputStream(tempFile)) {
+                    while ((bytesRead = is.read(buffer)) != -1) {
+                        fos.write(buffer, 0, bytesRead);
+                    }
+                }
+            }
+
+            // Delete the temporary file
+            GLog.debug("Deleting temporary file");
+            tempFile.delete();
+
+            // Reinitialize the mod cache to reflect the newly uploaded file
+            GLog.debug("Reinitializing mod cache after file upload");
+            // FileSystem.reinitModCache(); // Not available on Android platform
+
+            GLog.debug("=== FILE UPLOAD COMPLETED SUCCESSFULLY ===");
+            return newFixedLengthResponse(Response.Status.OK, "text/html", serveUploadForm("File uploaded successfully to: " + fullPath, path));
+
+        } catch (Exception e) {
+            GLog.debug("=== FILE UPLOAD FAILED ===");
+            GLog.debug("Upload error: " + e.getMessage());
+            e.printStackTrace(); // Log the full stack trace for debugging
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/html", serveUploadForm("ERROR: Failed to upload file - " + e.getMessage(), ""));
+        }
+    }
+
+    /**
+     * Shared body of /api/save-json and /api/save-lua - identical flow,
+     * JSON additionally validates its content.
+     */
+    private Response handleFileSave(IHTTPSession session, boolean validateJson, String kind) {
+        try {
+            GLog.debug("Handling " + kind + " save request");
+
+            String body = readPostBody(session);
+
+            if (body == null || body.isEmpty()) {
+                GLog.debug("No " + kind + " data found in request");
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json",
+                    "{\"error\":\"Empty request body\"}");
+            }
+
+            GLog.debug("Received " + kind + ": " + body.substring(0, Math.min(200, body.length())) + "...");
+
+            // The payload is {"filePath":"...","content":"..."} for both editors
+            JSONObject jsonData = new JSONObject(body);
+            String filePath = jsonData.getString("filePath");
+            String content = jsonData.getString("content");
+
+            GLog.debug("Saving " + kind + " to: " + filePath);
+
+            // Check if we're trying to save to the main Remixed mod
+            if (ModdingMode.activeMod().equals(ModdingMode.REMIXED)) {
+                GLog.debug("Save blocked - attempt to save to main 'Remixed' mod");
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
+                    "{\"error\":\"Save to the main 'Remixed' mod is disabled for security reasons.\"}");
+            }
+
+            // Validate that the file path is within the allowed mod directory
+            if (!isSafeResourcePath(filePath)) {
+                GLog.debug("Directory traversal attempt detected: " + filePath);
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
+                    "{\"error\":\"Directory traversal is not allowed.\"}");
+            }
+
+            if (validateJson) {
+                try {
+                    new JSONObject(content);
+                } catch (JSONException e) {
+                    GLog.debug("Invalid JSON content: " + e.getMessage());
+                    return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json",
+                        "{\"error\":\"Invalid JSON content: " + e.getMessage() + "\"}");
+                }
+            }
+
+            // Create the full path for the file
+            String fullPath = ModdingMode.activeMod() + "/" + filePath;
+            GLog.debug("Full file path: " + fullPath);
+
+            // Create the file
+            File destFile = FileSystem.getExternalStorageFile(fullPath);
+            GLog.debug("Destination file path: " + destFile.getAbsolutePath());
+
+            if (!isInsideStorageRoot(destFile)) {
+                GLog.w("Blocked " + kind + " save outside storage root: " + fullPath);
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
+                    "{\"error\":\"Destination outside mod storage.\"}");
+            }
+
+            // Create directories if needed
+            File destDir = destFile.getParentFile();
+            if (destDir != null && !destDir.exists()) {
+                destDir.mkdirs();
+            }
+
+            // Write the content to the file
+            try (FileOutputStream fos = new FileOutputStream(destFile)) {
+                fos.write(content.getBytes("UTF-8"));
+            }
+
+            return newFixedLengthResponse(Response.Status.OK, "application/json",
+                "{\"success\":true, \"message\":\"File saved successfully to: " + fullPath + "\"}");
+
+        } catch (JSONException e) {
+            GLog.debug(kind + " save: JSON parsing error: " + e.getMessage());
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json",
+                "{\"error\":\"Invalid JSON format in request: " + e.getMessage() + "\"}");
+        } catch (Exception e) {
+            GLog.debug(kind + " save failed: " + e.getMessage());
+            e.printStackTrace();
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json",
+                "{\"error\":\"Failed to save " + kind + " file: " + e.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * Handle saving JSON content to a file
+     */
+    protected Response handleJsonSave(IHTTPSession session) {
+        return handleFileSave(session, true, "JSON");
+    }
+
+    /**
+     * Handle saving Lua content to a file
+     */
+    protected Response handleLuaSave(IHTTPSession session) {
+        return handleFileSave(session, false, "Lua");
+    }
+
+    /**
+     * Serve the game log file for download
+     */
+    protected Response serveLog() {
+        try {
+            // Get the log file
+            File logFile = FileSystem.getExternalStorageFile("RePdLogFile.log");
+
+            if (!logFile.exists()) {
+                return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/html", serveNotFound());
+            }
+
+            // Open the file as an input stream
+            FileInputStream fis = new FileInputStream(logFile);
+
+            // Create response with appropriate headers for file download
+            Response response = newFixedLengthResponse(Response.Status.OK, "text/plain", fis, logFile.length());
+            response.addHeader("Content-Disposition", "attachment; filename=\"RePdLogFile.log\"");
+            return response;
+
+        } catch (Exception e) {
+            GLog.debug("Error serving log file: " + e.getMessage());
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/html",
+                serveUploadForm("ERROR: Failed to serve log file - " + e.getMessage(), ""));
+        }
+    }
+
+    @Override
+    public Response serve(IHTTPSession session) {
+        String uri = session.getUri();
+
+        // Check if libGDX is ready before processing most requests
+        if (!isReady() && !uri.equals("/ready")) {
+            return newFixedLengthResponse(Response.Status.SERVICE_UNAVAILABLE, "application/json",
+                "{\"error\":\"Game not ready\",\"ready\":false}");
+        }
+
+        // Special endpoint to check readiness
+        if (uri.equals("/ready")) {
+            boolean ready = isReady();
+            return newFixedLengthResponse(Response.Status.OK, "application/json",
+                "{\"ready\":" + ready + "}");
+        }
+
+        GLog.debug("WebServer: " + uri);
+
+        // caveman: exact match only. startsWith() on a HashMap made routing
+        // order-dependent - "/debug/cast_spell" is a prefix of
+        // "/debug/cast_spell_on_target" and could shadow it by iteration luck.
+        Function<NanoHTTPD.IHTTPSession, NanoHTTPD.Response> debugHandler = debugEndpoints.get(uri);
+        if (debugHandler != null) {
+            return debugHandler.apply(session);
+        }
+
+        if (session.getMethod() == Method.GET) {
+            if (uri.equals("/")) {
+                return newFixedLengthResponse(Response.Status.OK, "text/html",
+                    serveRoot());
+            }
+
+            if(uri.equals("/list")) {
+                return newFixedLengthResponse(Response.Status.OK, "text/html",
+                    serveList());
+            }
+
+            if(uri.startsWith("/upload")) {
+                return newFixedLengthResponse(Response.Status.OK, "text/html",
+                    serveUploadForm("", queryParam(session, "path")));
+            }
+
+            if(uri.startsWith("/edit-json")) {
+                String filePath = queryParam(session, "file");
+                GLog.debug("File to edit: '" + filePath + "'");
+                if (!isSafeResourcePath(filePath)) {
+                    return forbiddenPath();
+                }
+                if (!filePath.isEmpty()) {
+                    return newFixedLengthResponse(Response.Status.OK, "text/html",
+                        serveJsonEditor(filePath));
+                } else {
+                    return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html",
+                        serveNotFound());
+                }
+            }
+
+            if(uri.startsWith("/edit-lua")) {
+                String filePath = queryParam(session, "file");
+                GLog.debug("Lua file to edit: '" + filePath + "'");
+                if (!isSafeResourcePath(filePath)) {
+                    return forbiddenPath();
+                }
+                if (!filePath.isEmpty()) {
+                    return newFixedLengthResponse(Response.Status.OK, "text/html", serveLuaEditor(filePath));
+                } else {
+                    return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html", serveNotFound());
+                }
+            }
+
+            if(uri.startsWith("/preview-image")) {
+                String filePath = queryParam(session, "file");
+                GLog.debug("Image to preview: '" + filePath + "'");
+                if (!isSafeResourcePath(filePath)) {
+                    return forbiddenPath();
+                }
+                if (!filePath.isEmpty()) {
+                    return serveImagePreview(filePath);
+                } else {
+                    return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html", serveNotFound());
+                }
+            }
+
+            if(uri.startsWith("/edit-png")) {
+                String filePath = queryParam(session, "file");
+                GLog.debug("PNG file to edit: '" + filePath + "'");
+                if (!isSafeResourcePath(filePath)) {
+                    return forbiddenPath();
+                }
+                if (!filePath.isEmpty()) {
+                    return servePngEditor(filePath);
+                } else {
+                    return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html", serveNotFound());
+                }
+            }
+
+            if(uri.equals("/log")) {
+                return serveLog();
+            }
+
+            if(uri.startsWith("/fs/")) {
+                // Check for download parameter
+                String file = uri.substring(4);
+                if (!isSafeResourcePath(file)) {
+                    GLog.w("Blocked path traversal attempt on /fs/ download: " + file);
+                    return forbiddenPath();
+                }
+                String downloadParam = session.getParameters().get("download") != null ?
+                    session.getParameters().get("download").get(0) : null;
+
+                if ("true".equals(downloadParam) || "1".equals(downloadParam)) {
+                    // Force download of file regardless of type
+                    try {
+                        InputStream fis = ModdingMode.getInputStream(file);
+                        Response response = newChunkedResponse(Response.Status.OK, "application/octet-stream", fis);
+                        response.addHeader("Content-Disposition", "attachment; filename=\"" + headerFilename(file) + "\"");
+                        return response;
+                    } catch (Exception e) {
+                        GLog.w("Error serving raw file " + file + ": " + e.getMessage());
+                        return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/html", serveNotFound());
+                    }
+                }
+
+                return serveFs(file);
+            }
+
+            // Handle PixelCraft editor requests
+            if(uri.startsWith("/web/pixelcraft/")) {
+                // Extract the specific file path after /web/pixelcraft/
+                String file = uri.substring("/web/pixelcraft/".length());
+                if (file.isEmpty()) {
+                    file = "index.html"; // Default to index.html if no specific file requested
+                }
+
+                if (!isSafeResourcePath(file)) {
+                    GLog.w("Blocked path traversal attempt on /web/pixelcraft/: " + file);
+                    return forbiddenPath();
+                }
+
+                try {
+                    // Try to get the file from assets/web/pixelcraft/
+                    InputStream fis = ModdingMode.getInputStream("web/pixelcraft/" + file);
+
+                    // Determine the content type based on file extension
+                    String mimeType = "application/octet-stream";
+                    if (file.endsWith(".html")) {
+                        mimeType = "text/html";
+                    } else if (file.endsWith(".css")) {
+                        mimeType = "text/css";
+                    } else if (file.endsWith(".js")) {
+                        mimeType = "application/javascript";
+                    } else if (file.endsWith(".png")) {
+                        mimeType = "image/png";
+                    } else if (file.endsWith(".jpg") || file.endsWith(".jpeg")) {
+                        mimeType = "image/jpeg";
+                    } else if (file.endsWith(".gif")) {
+                        mimeType = "image/gif";
+                    } else if (file.endsWith(".json")) {
+                        mimeType = "application/json";
+                    } else if (file.endsWith(".txt")) {
+                        mimeType = "text/plain";
+                    }
+
+                    Response response = newChunkedResponse(Response.Status.OK, mimeType, fis);
+                    return response;
+                } catch (Exception e) {
+                    GLog.w("Error serving PixelCraft file " + file + ": " + e.getMessage());
+                    return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/html", serveNotFound());
+                }
+            }
+
+            if(uri.startsWith("/raw/")) {
+                // Handle raw file content requests (for editor content loading)
+                String file = uri.substring(5); // "/raw/".length() = 5
+                if (!isSafeResourcePath(file)) {
+                    GLog.w("Blocked path traversal attempt on /raw/: " + file);
+                    return forbiddenPath();
+                }
+                try {
+                    InputStream fis = ModdingMode.getInputStream(file);
+                    Response response = newChunkedResponse(Response.Status.OK, "application/octet-stream", fis);
+                    return response;
+                } catch (Exception e) {
+                    GLog.w("Error serving raw file " + file + ": " + e.getMessage());
+                    return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/html", serveNotFound());
+                }
+            }
+
+            if(uri.equals("/debug-list")) {
+                return serveDebugList("");
+            } else if(uri.startsWith("/debug-list/")) {
+                String path = uri.substring(12); // "/debug-list/".length() = 12
+                if (!isSafeResourcePath(path)) {
+                    return forbiddenPath();
+                }
+                return serveDebugList(path);
+            }
+        } else if (session.getMethod() == Method.POST) {
+            Response postResponse = null;
+            if(uri.startsWith("/upload")) {
+                postResponse = handleFileUpload(session);
+            }
+
+            if (postResponse == null && uri.startsWith("/api/save-json")) {
+                postResponse = handleJsonSave(session);
+            }
+
+            if (postResponse == null && uri.startsWith("/api/save-lua")) {
+                postResponse = handleLuaSave(session);
+            }
+
+            if (postResponse == null && uri.equals("/api/save_texture")) {
+                postResponse = handleTextureSave(session);
+            }
+
+            if (postResponse != null) {
+                // caveman: nanohttpd 2.3.1 does not drain POST bodies fully -
+                // next keep-alive request on the socket reads leftover bytes
+                // ("BAD REQUEST: Missing URI"). close connection after every POST.
+                postResponse.addHeader("Connection", "close");
+                return postResponse;
+            }
+        }
+
+        // Add handling for GET requests to the texture API
+        if (session.getMethod() == Method.GET) {
+            if (uri.startsWith("/api/get_texture")) {
+                String filePath = queryParam(session, "file");
+
+                if (!isSafeResourcePath(filePath)) {
+                    GLog.w("Blocked path traversal attempt on /api/get_texture: " + filePath);
+                    return forbiddenPath();
+                }
+
+                if (!filePath.isEmpty()) {
+                    return handleTextureGet(filePath);
+                } else {
+                    return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html", serveNotFound());
+                }
+            }
+        }
+
+        return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/html",
+            serveNotFound());
+    }
+
+    /**
+     * caveman: platform Base64 - android.util vs java.util, so the hooks
+     * are abstract. Everything around texture save/get is shared.
+     */
+    protected abstract byte[] base64Decode(String data);
+
+    protected abstract String base64Encode(byte[] data);
+
+    /**
+     * Serve image preview page
+     */
+    protected Response serveImagePreview(String filePath) {
+        try {
+            GLog.debug("Serving image preview for: " + filePath);
+
+            // Verify that the file exists and is an image
+            if (!filePath.toLowerCase().endsWith(".png") &&
+                !filePath.toLowerCase().endsWith(".jpg") &&
+                !filePath.toLowerCase().endsWith(".jpeg")) {
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html",
+                    "<html><body><h1>Invalid image file</h1></body></html>");
+            }
+
+            // Create an HTML page to display the image
+            String encodedFilePath = getEncodedPath(filePath);
+            String html = String.format(
+                "<!DOCTYPE html>" +
+                "<html>" +
+                "<head>" +
+                "    <title>Image Preview - %s</title>" +
+                "    <style>" +
+                "        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }" +
+                "        .container { background: white; padding: 20px; border-radius: 8px; max-width: 800px; margin: 0 auto; }" +
+                "        .image-container { text-align: center; margin: 20px 0; }" +
+                "        img { max-width: 100%%; height: auto; border: 1px solid #ccc; }" +
+                "        .controls { text-align: center; margin: 20px 0; }" +
+                "        .controls a { margin: 0 10px; padding: 10px 15px; background: #4CAF50; color: white; text-decoration: none; border-radius: 4px; }" +
+                "        .controls a:hover { background: #45a049; }" +
+                "    </style>" +
+                "</head>" +
+                "<body>" +
+                "    <div class='container'>" +
+                "        <h1>Preview: %s</h1>" +
+                "        <div class='image-container'>" +
+                "            <img src='/fs/%s' alt='%s'>" +
+                "        </div>" +
+                "        <div class='controls'>" +
+                "            <a href='/edit-png?file=%s'>Edit with PixelCraft</a>" +
+                "            <a href='/fs/%s?download=true'>Download</a>" +
+                "            <a href='/list'>Back to directory</a>" +
+                "        </div>" +
+                "    </div>" +
+                "</body>" +
+                "</html>",
+                htmlEscape(filePath), htmlEscape(filePath), getEncodedPath(filePath),
+                htmlEscape(filePath), encodedFilePath, getEncodedPath(filePath));
+
+            return newFixedLengthResponse(Response.Status.OK, "text/html", html);
+
+        } catch (Exception e) {
+            GLog.debug("Error serving image preview: " + e.getMessage());
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/html",
+                "<html><body><h1>Error serving image preview</h1></body></html>");
+        }
+    }
+
+    /**
+     * Serve PNG editor page (redirects to PixelCraft with the image loaded)
+     */
+    protected Response servePngEditor(String filePath) {
+        try {
+            GLog.debug("Serving PNG editor for: " + filePath);
+
+            // Verify that the file exists and is an image
+            if (!filePath.toLowerCase().endsWith(".png") &&
+                !filePath.toLowerCase().endsWith(".jpg") &&
+                !filePath.toLowerCase().endsWith(".jpeg")) {
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/html",
+                    "<html><body><h1>Invalid image file</h1></body></html>");
+            }
+
+            // Redirect to PixelCraft with the edit_file parameter
+            String pixelCraftUrl = "/web/pixelcraft/?edit_file=" + getEncodedPath(filePath);
+
+            // Create a redirect page
+            String html = String.format(
+                "<!DOCTYPE html>" +
+                "<html>" +
+                "<head>" +
+                "    <meta http-equiv='refresh' content='0; url=%s'>" +
+                "    <title>Redirecting to PixelCraft Editor</title>" +
+                "</head>" +
+                "<body>" +
+                "    <p>If you are not redirected to PixelCraft automatically, <a href='%s'>click here</a>.</p>" +
+                "</body>" +
+                "</html>",
+                pixelCraftUrl, pixelCraftUrl);
+
+            return newFixedLengthResponse(Response.Status.OK, "text/html", html);
+
+        } catch (Exception e) {
+            GLog.debug("Error serving PNG editor: " + e.getMessage());
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "text/html",
+                "<html><body><h1>Error serving PNG editor</h1></body></html>");
+        }
+    }
+
+    /**
+     * Debug endpoint to test ModdingMode.listResources directly
+     */
+    protected Response serveDebugList(String path) {
+        // This method should be implemented in the platform-specific subclass
+        // For now, return a not found response
+        return newFixedLengthResponse(Response.Status.NOT_IMPLEMENTED, "text/html", serveNotFound());
+    }
+
+    /**
+     * Handle saving texture content from PixelCraft editor
+     */
+    protected Response handleTextureSave(IHTTPSession session) {
+        try {
+            GLog.debug("Handling texture save request");
+
+            String jsonString = readPostBody(session);
+
+            if (jsonString == null || jsonString.isEmpty()) {
+                GLog.debug("No texture data found in request");
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json",
+                    "{\"error\":\"Empty request body\"}");
+            }
+
+            GLog.debug("Received texture data (length): " + jsonString.length());
+
+            // Parse the JSON to extract filename and image content
+            JSONObject jsonData = new JSONObject(jsonString);
+            String filename = jsonData.getString("name");
+            String base64Content = jsonData.getString("image");
+
+            GLog.debug("Saving texture to: " + filename);
+
+            // Check if we're trying to save to the main Remixed mod
+            if (ModdingMode.activeMod().equals(ModdingMode.REMIXED)) {
+                GLog.debug("Save blocked - attempt to save to main 'Remixed' mod");
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
+                    "{\"error\":\"Save to the main 'Remixed' mod is disabled for security reasons.\"}");
+            }
+
+            // Validate that the file path is within the allowed mod directory
+            if (!isSafeResourcePath(filename)) {
+                GLog.debug("Directory traversal attempt detected: " + filename);
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
+                    "{\"error\":\"Directory traversal is not allowed.\"}");
+            }
+
+            // Decode the base64 content
+            byte[] imageBytes = base64Decode(base64Content);
+
+            // Create the full path for the file
+            String fullPath = ModdingMode.activeMod() + "/" + filename;
+
+            // Create the file
+            File destFile = FileSystem.getExternalStorageFile(fullPath);
+            GLog.debug("Destination file path: " + destFile.getAbsolutePath());
+
+            if (!isInsideStorageRoot(destFile)) {
+                GLog.w("Blocked texture save outside storage root: " + fullPath);
+                return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json",
+                    "{\"error\":\"Destination outside mod storage.\"}");
+            }
+
+            // Create directories if needed
+            File destDir = destFile.getParentFile();
+            if (destDir != null && !destDir.exists()) {
+                destDir.mkdirs();
+            }
+
+            // Write the content to the file
+            try (FileOutputStream fos = new FileOutputStream(destFile)) {
+                fos.write(imageBytes);
+            }
+
+            return newFixedLengthResponse(Response.Status.OK, "application/json",
+                "{\"success\":true, \"message\":\"File saved successfully to: " + fullPath + "\"}");
+
+        } catch (JSONException e) {
+            GLog.debug("Texture save: JSON parsing error: " + e.getMessage());
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json",
+                "{\"error\":\"Invalid JSON format in request: " + e.getMessage() + "\"}");
+        } catch (Exception e) {
+            GLog.debug("Texture save failed: " + e.getMessage());
+            e.printStackTrace();
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json",
+                "{\"error\":\"Failed to save texture file: " + e.getMessage() + "\"}");
+        }
+    }
+
+    /**
+     * Handle getting texture content for PixelCraft editor.
+     * Mod dir first, falls back to active-mod assets.
+     */
+    protected Response handleTextureGet(String filePath) {
+        try {
+            GLog.debug("Handling texture get request for: " + filePath);
+
+            if (!isSafeResourcePath(filePath)) {
+                GLog.w("Blocked path traversal attempt on /api/get_texture: " + filePath);
+                return forbiddenPath();
+            }
+
+            // Create the full path for the file
+            String fullPath = ModdingMode.activeMod() + "/" + filePath;
+            GLog.debug("Full file path: " + fullPath);
+
+            byte[] fileBytes;
+            // First, check if the file exists in the mod directory
+            File textureFile = FileSystem.getExternalStorageFile(fullPath);
+
+            if (textureFile.exists()) {
+                // File exists in mod directory, read from there
+                fileBytes = new byte[(int) textureFile.length()];
+                try (FileInputStream fis = new FileInputStream(textureFile)) {
+                    fis.read(fileBytes);
+                }
+            } else {
+                // File doesn't exist in mod directory, try to read from assets via ModdingMode
+                try (InputStream fis = ModdingMode.getInputStream(filePath)) {
+                    if (fis == null) {
+                        GLog.debug("Texture file does not exist in mod directory or assets: " + fullPath);
+                        return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json",
+                            "{\"error\":\"File not found: " + filePath + "\"}");
+                    }
+
+                    // Read all bytes from input stream
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    int nRead;
+                    byte[] data = new byte[1024];
+                    while ((nRead = fis.read(data, 0, data.length)) != -1) {
+                        buffer.write(data, 0, nRead);
+                    }
+                    fileBytes = buffer.toByteArray();
+                }
+            }
+
+            // Create a JSON response with the base64 content
+            JSONObject jsonResponse = new JSONObject();
+            jsonResponse.put("name", filePath);
+            jsonResponse.put("image", base64Encode(fileBytes));
+
+            return newFixedLengthResponse(Response.Status.OK, "application/json", jsonResponse.toString());
+
+        } catch (Exception e) {
+            GLog.debug("Texture get failed: " + e.getMessage());
+            e.printStackTrace();
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json",
+                "{\"error\":\"Failed to get texture file: " + e.getMessage() + "\"}");
+        }
+    }
+
+}

@@ -1,0 +1,92 @@
+package com.nyrds.pixeldungeon.ml.actions;
+
+import com.nyrds.pixeldungeon.ai.Guard;
+import com.nyrds.pixeldungeon.ai.KillOrder;
+import com.nyrds.pixeldungeon.ai.MobAi;
+import com.nyrds.pixeldungeon.ai.MoveOrder;
+import com.nyrds.pixeldungeon.ai.Wandering;
+import com.nyrds.pixeldungeon.ml.R;
+import com.nyrds.pixeldungeon.utils.CharsList;
+import com.watabou.noosa.Image;
+import com.watabou.pixeldungeon.actors.Actor;
+import com.watabou.pixeldungeon.actors.Char;
+import com.watabou.pixeldungeon.actors.CharUtils;
+import com.watabou.pixeldungeon.scenes.CellSelector;
+import com.watabou.pixeldungeon.utils.Utils;
+import org.jetbrains.annotations.NotNull;
+
+class OrderCellSelector implements CellSelector.Listener {
+    private final Char target;
+
+    public OrderCellSelector(Char target) {
+        this.target = target;
+
+        CharUtils.mark(target);
+        CharUtils.markTarget(target);
+    }
+
+    @Override
+    public void onSelect(Integer cell, @NotNull Char selector) {
+        selector.next();
+        CharUtils.clearMarkers();
+
+        if (cell == null) {
+            return;
+        }
+
+        if (Actor.findChar(cell) == selector) { // ordered onto the player's own cell: follow me, not attack the player
+            target.setState(MobAi.getStateByClass(Wandering.class));
+            target.setEnemy(CharsList.DUMMY);
+            target.setTarget(cell);
+            target.say(Utils.format(R.string.Mob_FollowMe));
+            return;
+        }
+
+        if (Actor.findChar(cell) == target) { // ordered onto its own cell: hold this place
+            target.setState(MobAi.getStateByClass(Guard.class));
+            target.setEnemy(CharsList.DUMMY);
+            target.setTarget(cell);
+            target.say(Utils.format(R.string.Mob_Guarding));
+            return;
+        }
+
+        CharAction action = CharUtils.actionForCell(target, cell, target.level());
+
+        if (action instanceof Move) {
+            target.setState(MobAi.getStateByClass(MoveOrder.class));
+            target.setTarget(cell);
+            target.say(Utils.format(R.string.Mob_GoingTo));
+            return;
+        }
+
+        if (action instanceof Interact) {
+            action = new Attack(((Interact) action).chr);
+        }
+
+        if (action instanceof Attack) {
+            Attack attack = (Attack) action;
+            target.setState(MobAi.getStateByClass(KillOrder.class));
+            target.setEnemy(attack.target);
+            // caveman: name the victim, not the pet twice. objective case for ru grammar
+            target.say(Utils.format(R.string.Mob_Attacking, attack.target.getName_objective()));
+            return;
+        }
+
+        target.say(Utils.format(R.string.Mob_CantDoIt));
+    }
+
+    @Override
+    public String prompt() {
+        return Utils.capitalize(Utils.format(R.string.Mob_ReadyForOrder, target.getName()));
+    }
+
+    @Override
+    public Image icon() {
+        return target.getSprite().avatar();
+    }
+
+    @Override
+    public boolean mayBeCanceled() {
+        return false;
+    }
+}

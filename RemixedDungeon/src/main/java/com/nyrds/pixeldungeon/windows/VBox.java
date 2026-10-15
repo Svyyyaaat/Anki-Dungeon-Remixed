@@ -1,0 +1,175 @@
+package com.nyrds.pixeldungeon.windows;
+
+
+
+import com.watabou.noosa.Gizmo;
+import java.util.ArrayList;
+import java.util.List;
+import lombok.Getter;
+import lombok.Setter;
+import org.jetbrains.annotations.NotNull;
+
+/**
+ * Created by mike on 01.05.2018.
+ * This file is part of Remixed Pixel Dungeon.
+ */
+@Setter
+public class VBox extends BasicBox {
+
+    public enum Align {
+      Top,Bottom,Center,Height
+    }
+
+    private Align align = Align.Top;
+    private int gap = 0;
+
+    @Getter
+    @Setter
+    private float maxHeight = 0;
+
+    private void alignTop() {
+        float pos = top();
+
+        List<Gizmo> snapshot = new ArrayList<>(members);
+        for(Gizmo g : snapshot) {
+            if (g instanceof IPlaceable) {
+                IPlaceable gip = (IPlaceable) g;
+
+                IPlaceable shadowOf = gip.shadowOf();
+                if(shadowOf != null) {
+                    gip.setPos(x, shadowOf.getY());
+                    continue;
+                }
+
+                gip.setPos(x, pos);
+                pos += gip.height() + gap;
+            }
+        }
+    }
+
+    private void alignBottom() {
+        float pos = bottom();
+
+        List<Gizmo> snapshot = new ArrayList<>(members);
+        for(Gizmo g : snapshot) {
+            if (g instanceof IPlaceable) {
+                IPlaceable gip = (IPlaceable) g;
+
+                IPlaceable shadowOf = gip.shadowOf();
+                if(shadowOf != null) {
+                    gip.setPos(x, shadowOf.getY());
+                    continue;
+                }
+
+                gip.setPos(x,pos - gip.height() - gap);
+                pos -= gip.height() + gap;
+            }
+        }
+    }
+
+    public float childsHeight() {
+        float childsHeight = 0;
+
+        List<Gizmo> snapshot = new ArrayList<>(members);
+        for(Gizmo g : snapshot) {
+            if (g instanceof IPlaceable) {
+                IPlaceable gip = (IPlaceable) g;
+
+                IPlaceable shadowOf = gip.shadowOf();
+                if(shadowOf != null) {
+                    continue;
+                }
+
+                childsHeight += ((IPlaceable) g).height() + gap;
+            }
+        }
+        return childsHeight;
+    }
+
+    private void alignCenter() {
+        float pos = top() + (height() - childsHeight()) / 2;
+
+        List<Gizmo> snapshot = new ArrayList<>(members);
+        for(Gizmo g : snapshot) {
+            if (g instanceof IPlaceable) {
+                IPlaceable gip = (IPlaceable) g;
+
+                IPlaceable shadowOf = gip.shadowOf();
+                if(shadowOf != null) {
+                    gip.setPos(x, shadowOf.getY());
+                    continue;
+                }
+
+                gip.setPos(x, pos);
+                pos += gip.height() + gap;
+            }
+        }
+    }
+
+    private void alignHeight() {
+        if(members.size() > 1) {
+            gap = 0;
+            float totalGap = maxHeight - childsHeight();
+            gap = (int) (totalGap / (members.size() - 1));
+        }
+        alignTop();
+    }
+
+    @Override
+    public float top() {
+        if(align == Align.Bottom) {
+            return bottom() - childsHeight();
+        }
+        return super.top();
+    }
+
+    @Override
+    protected void _measure() {
+        width = 0;
+        height = 0;
+
+        List<Gizmo> snapshot = new ArrayList<>(members);
+        for(Gizmo g : snapshot) {
+            if (g instanceof IPlaceable) {
+                IPlaceable gip = (IPlaceable) g;
+
+                IPlaceable shadowOf = gip.shadowOf();
+                if(shadowOf != null) {
+                    continue;
+                }
+                height += gip.height() + gap;
+                //GLog.debug("vbox item: %s, %3.0f", g.getClass().getSimpleName(), gip.width());
+                width = Math.max(width,gip.width());
+            }
+        }
+    }
+
+    @Override
+    public void layout() {
+        switch (align) {
+
+            case Top:
+                alignTop();
+                break;
+            case Bottom:
+                alignBottom();
+                break;
+            case Center:
+                alignCenter();
+                break;
+            case Height:
+                alignHeight();
+                break;
+        }
+        super.layout();
+    }
+
+    public void addRow(int maxWidth, HBox.Align align, @NotNull Gizmo ...elements) {
+        HBox box = new HBox(maxWidth);
+        box.setAlign(align);
+        for(Gizmo c : elements) {
+            box.add(c);
+        }
+        add(box);
+    }
+}

@@ -1,0 +1,100 @@
+# Mob Animation Viewer
+
+A web application to load and play mob animations from Remixed Dungeon using existing sprite JSONs and textures.
+
+## Features
+
+- **Browse Mobs**: Select from a list of available mobs (Bat, Brute, Crab, Eye, Ghost, etc.)
+- **Animation Playback**: View different animations (idle, run, attack, die)
+- **Controls**:
+  - Play/Pause animation
+  - Toggle looping
+  - Adjust scale (1x - 8x)
+  - Adjust playback speed (0.25x - 4x)
+- **Search**: Filter mobs by name
+- **Sprite Info**: View sprite metadata (name, size, texture, available animations)
+
+## Running the Application
+
+### Data Sources
+
+The header has a **Data source** switch (persisted in localStorage):
+
+- **Local server** (default) - fetches from the server serving this page.
+- **GitHub (master)** - fetches sprite JSONs and textures straight from
+  `raw.githubusercontent.com/NYRDS/remixed-dungeon`, with the mob list
+  from the GitHub contents API. Works from any host (or `file://`) with
+  no local checkout of assets; subject to the unauthenticated GitHub API
+  rate limit (60 req/h, mob list only - raw file fetches are unlimited
+  for practical purposes). Textures load with `crossOrigin=anonymous`
+  and raw.githubusercontent sends CORS headers, so the canvas stays
+  readable.
+
+### Option 1: No-Cache Python Server (Recommended)
+
+```bash
+python3 mob-viewer/serve.py 8099
+```
+
+Then open your browser to: `http://localhost:8099/mob-viewer/index.html`
+
+This wrapper sends `Cache-Control: no-store`, so sprite/JS edits show up
+on a normal reload. `python3 -m http.server` does not send cache headers
+and Chrome heuristically caches the ES modules - stale code survives
+normal reloads and looks like "the fix doesn't work".
+
+### Option 2: Any Static File Server
+
+You can use any static file server (nginx, Apache, Node.js http-server, etc.) to serve the `/workspace` directory. If sprite or viewer-code edits don't appear after a reload, hard-refresh (Ctrl+Shift+R).
+
+## How It Works
+
+The viewer loads:
+1. **Sprite JSON files** from `RemixedDungeon/src/main/assets/spritesDesc/`
+2. **Texture PNG files** from `RemixedDungeon/src/main/assets/`
+
+Each sprite JSON defines:
+- Texture filename
+- Sprite dimensions (width x height)
+- Animation definitions with:
+  - FPS (frames per second)
+  - Loop flag
+  - Frame sequence (indexes into the sprite sheet)
+
+## Supported Mobs
+
+The viewer includes a predefined list of mobs. You can extend this list by adding more mob names to the `mobNames` array in `app.js`.
+
+Available mobs include:
+- Bat, Brute, Crab, Eye, Ghost, Gnoll, Golem, Goo
+- King, Rat, Skeleton, SpiderQueen, Tengu, Zombie
+- Sheep, Hedgehog, Bee, Wraith, Shadow, Mimic
+- Lich, Monk, Thief, Shaman, Scorpio, DM300
+- And many more (see `RemixedDungeon/src/main/assets/spritesDesc/`)
+
+## Technical Details
+
+- Pure HTML/CSS/JavaScript (no build step required)
+- Uses Canvas API for rendering
+- RequestAnimationFrame for smooth animation
+- Pixel-perfect rendering with `image-rendering: pixelated`
+- Responsive design with dark theme
+
+## File Structure
+
+```
+/workspace/mob-viewer/
+├── index.html      # Main HTML page
+├── app.js          # Application logic
+└── README.md       # This file
+```
+
+## Browser Compatibility
+
+Works in all modern browsers that support:
+- ES6 classes
+- Fetch API
+- Canvas API
+- RequestAnimationFrame
+
+Tested on Chrome, Firefox, and Edge.

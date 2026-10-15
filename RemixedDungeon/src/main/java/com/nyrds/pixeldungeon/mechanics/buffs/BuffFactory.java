@@ -1,0 +1,196 @@
+package com.nyrds.pixeldungeon.mechanics.buffs;
+
+import com.nyrds.LuaInterface;
+import com.nyrds.pixeldungeon.items.common.RatKingCrown;
+import com.nyrds.pixeldungeon.items.common.rings.RingOfFrost;
+import com.nyrds.pixeldungeon.items.guts.HeartOfDarkness;
+import com.nyrds.platform.EventCollector;
+import com.nyrds.util.ModError;
+import com.nyrds.util.ModdingMode;
+import com.nyrds.util.Util;
+import com.watabou.pixeldungeon.actors.buffs.Buff;
+import com.watabou.pixeldungeon.actors.buffs.DummyBuff;
+import com.watabou.pixeldungeon.actors.buffs.Hunger;
+import com.watabou.pixeldungeon.items.armor.glyphs.Viscosity;
+import com.watabou.pixeldungeon.items.quest.DriedRose;
+import com.watabou.pixeldungeon.items.quest.RatSkull;
+import com.watabou.pixeldungeon.items.rings.RingOfAccuracy;
+import com.watabou.pixeldungeon.items.rings.RingOfDetection;
+import com.watabou.pixeldungeon.items.rings.RingOfElements;
+import com.watabou.pixeldungeon.items.rings.RingOfEvasion;
+import com.watabou.pixeldungeon.items.rings.RingOfPower;
+import com.watabou.pixeldungeon.items.rings.RingOfStoneWalking;
+import com.watabou.pixeldungeon.utils.Utils;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import lombok.SneakyThrows;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+@LuaInterface
+public class BuffFactory {
+    public static final String CHAMPION_OF_EARTH = "ChampionOfEarth";
+    public static final String CHAMPION_OF_FIRE = "ChampionOfFire";
+    public static final String CHAMPION_OF_WATER = "ChampionOfWater";
+    public static final String CHAMPION_OF_AIR = "ChampionOfAir";
+    public static final String ANESTHESIA = "Anesthesia";
+    static private final Map<String, Class<? extends Buff>> buffList = new HashMap<>();
+
+    static private final Set<String> customBuffs = new HashSet<>();
+
+    public static final String GASES_IMMUNITY = "GasesImmunity";
+
+    // vanilla buff kinds; stable across the java -> lua migration (a dying
+    // java class leaves the string behind, CustomBuff picks the kind up)
+    public static final String BURNING = "Burning";
+    public static final String BARKSKIN = "Barkskin";
+    public static final String POISON = "Poison";
+    public static final String FURY = "Fury";
+    public static final String COMBO = "Combo";
+    public static final String OOZE = "Ooze";
+    public static final String HUNGER = "Hunger";
+    public static final String REGENERATION = "Regeneration";
+    public static final String MAGIC_REGENERATION = "ManaRegeneration";
+    public static final String BLEEDING = "Bleeding";
+    public static final String CHARM = "Charm";
+    public static final String FROST = "Frost";
+    public static final String SLEEP = "Sleep";
+    public static final String LEVITATION = "Levitation";
+    public static final String MIND_VISION = "MindVision";
+    public static final String BLINDNESS = "Blindness";
+    public static final String VERTIGO = "Vertigo";
+    public static final String STUN = "Stun";
+    public static final String PARALYSIS = "Paralysis";
+    public static final String TERROR = "Terror";
+    public static final String WEAKNESS = "Weakness";
+    public static final String LIGHT = "Light";
+    public static final String INVISIBILITY = "Invisibility";
+    public static final String SHADOWS = "Shadows";
+    public static final String SPEED = "Speed";
+    public static final String CRIPPLE = "Cripple";
+    public static final String AWARENESS = "Awareness";
+    public static final String SNIPER_MARK = "SnipersMark";
+    public static final String BLESSED = "Blessed";
+    public static final String SLOW = "Slow";
+    public static final String ROOTS = "Roots";
+    public static final String AMOK = "Amok";
+    public static final String RAGE = new RageBuff().getEntityKind();
+
+    // the Moongrace plant shares this buff's simple name and cannot import it
+    public static final String MOONGRACE = "Moongrace";
+
+    public static final String HEALTH = "Health";
+    public static final String ARMOR = "Armor";
+
+    public static final String RING_OF_DETECTION = new RingOfDetection().buff().getEntityKind();
+    public static final String RING_OF_EVASION = new RingOfEvasion().buff().getEntityKind();
+    public static final String RING_OF_ACCURACY = new RingOfAccuracy().buff().getEntityKind();
+    public static final String RING_OF_STONE_WALKING = new RingOfStoneWalking().buff().getEntityKind();
+    public static final String RING_OF_POWER = new RingOfPower().buff().getEntityKind();
+    public static final String RING_OF_ELEMENTS = new RingOfElements().buff().getEntityKind();
+
+    public static final String RAT_SKULL_RATTER_AURA = new RatSkull().buff().getEntityKind();
+
+
+    static {
+        initBuffsMap();
+
+        for(String buffFile: ModdingMode.listResources("scripts/buffs", (dir, name) -> name.endsWith(".lua"))) {
+            customBuffs.add(buffFile.replace(".lua", Utils.EMPTY_STRING));
+        }
+    }
+
+    private static void registerBuffClass(Class<? extends Buff> buffClass) {
+        buffList.put(buffClass.getSimpleName(), buffClass);
+    }
+
+    private static void initBuffsMap() {
+        registerBuffClass(Viscosity.DeferedDamage.class);
+        registerBuffClass(Hunger.class);
+        //registerBuffClass(Charger.class);
+        registerBuffClass(Necrotism.class);
+        registerBuffClass(HeartOfDarkness.HeartOfDarknessBuff.class);
+        registerBuffClass(DriedRose.OneWayCursedLoveBuff.class);
+        registerBuffClass(RatKingCrown.RatKingAuraBuff.class);
+        registerBuffClass(RingOfStoneWalking.StoneWalking.class);
+        registerBuffClass(RingOfFrost.FrostAura.class);
+        registerBuffClass(RatSkull.RatterAura.class);
+        registerBuffClass(RageBuff.class);
+        registerBuffClass(DriedRose.OneWayCursedLoveBuff.class);
+        // registered for the Moongrace plant, which shares the buff's simple name
+        // and cannot import it directly
+        registerBuffClass(Moongrace.class);
+        //registerBuffClass(RingOfHaggler.Haggling.class);
+        //registerBuffClass(RingOfPower.Power.class);
+        //registerBuffClass(RingOfSatiety.Satiety.class);
+        //registerBuffClass(RingOfHaste.Haste.class);
+        //registerBuffClass(RingOfMending.Rejuvenation.class);
+        //registerBuffClass(RingOfHerbalism.Herbalism.class);
+        //registerBuffClass(RingOfEvasion.Evasion.class);
+        //registerBuffClass(RingOfThorns.Thorns.class);
+        //registerBuffClass(RingOfDetection.Detection.class);
+        //registerBuffClass(RingOfElements.Resistance.class);
+        //registerBuffClass(RingOfShadows.Shadows.class);
+
+
+    }
+
+    private static boolean hasBuffForName(String name) {
+        if(customBuffs.contains(name)) {
+            return true;
+        }
+
+        if (buffList.get(name) != null) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public static Set<String> getAllBuffsNames() {
+        var ret = new HashSet<String>();
+
+        ret.addAll(customBuffs);
+        ret.addAll(buffList.keySet());
+
+        return ret;
+    }
+
+    @NotNull
+    @SneakyThrows
+    public static Buff getBuffByName(String name) {
+        if(hasBuffForName(name)) {
+            Class<? extends Buff> buffClass = buffList.get(name);
+            if (buffClass == null) {
+                return new CustomBuff(name);
+            }
+            return buffClass.newInstance();
+        }
+
+        if (!Util.isDebug()) {
+            return DummyBuff.instance;
+        }
+
+
+        throw new ModError(name, new Exception("Unknown Buff:"+name));
+    }
+
+    /**
+     * Gated resolver for save-restore: null unless the buff is known, never
+     * a CustomBuff/DummyBuff guess.
+     */
+    @Nullable
+    public static Buff tryByName(String name) {
+        if (!hasBuffForName(name)) {
+            return null;
+        }
+        try {
+            return getBuffByName(name);
+        } catch (Exception e) {
+            EventCollector.logException(e, name);
+            return null;
+        }
+    }
+}

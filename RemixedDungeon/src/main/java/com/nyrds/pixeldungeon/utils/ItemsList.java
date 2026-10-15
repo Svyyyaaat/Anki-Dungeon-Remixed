@@ -1,0 +1,38 @@
+package com.nyrds.pixeldungeon.utils;
+
+import com.nyrds.LuaInterface;
+import com.nyrds.Packable;
+import com.nyrds.pixeldungeon.items.DummyItem;
+import com.watabou.pixeldungeon.items.EquipableItem;
+import com.watabou.pixeldungeon.items.Item;
+import java.util.concurrent.ConcurrentHashMap;
+import org.jetbrains.annotations.NotNull;
+
+@Packable
+public class ItemsList {
+    // invalid item
+    public static final EquipableItem DUMMY = new DummyItem();
+
+    private static final ConcurrentHashMap<Integer, Item> itemsMap = new ConcurrentHashMap<>();
+
+    @LuaInterface
+    @NotNull
+    static public Item getById(int id) {
+        Item ret = itemsMap.get(id);
+        if(ret == null) {
+            return DUMMY;
+        }
+        return ret;
+    }
+
+    static public void reset() {
+        itemsMap.clear();
+    }
+
+    static public void add(Item item, int id) {
+        itemsMap.put(id,item);
+    }
+    static public void remove(int id) {
+        itemsMap.remove(id);
+    }
+}
