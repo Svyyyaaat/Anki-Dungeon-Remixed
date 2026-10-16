@@ -93,6 +93,14 @@ html, body {
     margin-bottom: 8px;
 }
 
+#new-card {
+    display: none;
+    margin: -2px 0 8px;
+    font-size: 14px;
+    color: var(--title);
+    text-align: center;
+}
+
 #content {
     flex: 1 1 auto;
     overflow-y: auto;
@@ -256,6 +264,7 @@ button.snd:active {
             <button class="btn grey" id="btn-bury">Bury</button>
             <button class="btn grey" id="btn-suspend">Suspend</button>
         </div>
+        <div id="new-card">New card &mdash; no penalty if you miss it</div>
         <div id="content">
             <div id="question" class="card">%%QUESTION%%</div>
             <div id="answer" class="card">%%ANSWER%%</div>
@@ -476,10 +485,13 @@ function busy() {
         });
     });
 
+    if (CONFIG.newCard) {
+        el("new-card").style.display = "block";
+    }
+
     if (CONFIG.missingMedia > 0) {
         var mn = el("media-note");
-        mn.textContent = (CONFIG.missingMedia === 1 ? "1 media file is" : CONFIG.missingMedia + " media files are")
-            + " missing. In AnkiDroid: Export, Include media, Share to Cram Dungeon.";
+        mn.textContent = "Some pictures or sounds are missing. Add them in Settings > Flashcards > Pictures & sounds.";
         mn.style.display = "block";
     }
 

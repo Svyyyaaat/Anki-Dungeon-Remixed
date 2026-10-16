@@ -93,7 +93,7 @@ public class FlashcardsTab extends Component {
         chkSimple.checked(AnkiPrefs.simpleGrading());
         add(chkSimple);
 
-        chkTts = new CheckBox("Read TTS fields") {
+        chkTts = new CheckBox("Read cards aloud") {
             @Override
             protected void onClick() {
                 super.onClick();
@@ -103,7 +103,7 @@ public class FlashcardsTab extends Component {
         chkTts.checked(AnkiPrefs.tts());
         add(chkTts);
 
-        btnMedia = new RedButton("Card media") {
+        btnMedia = new RedButton("Pictures & sounds") {
             @Override
             protected void onClick() {
                 showMediaOptions();
@@ -199,20 +199,17 @@ public class FlashcardsTab extends Component {
     }
 
     private static String frequencyLabel() {
-        return "Cards: " + AnkiPrefs.frequency().label;
+        return "Cramming: " + AnkiPrefs.frequency().label;
     }
 
     private static void showFrequencyOptions(RedButton button) {
         AnkiMomentum.Frequency[] all = AnkiMomentum.Frequency.values();
-        StringBuilder message = new StringBuilder(
-                "Momentum turns good answers into free checks that skip the card. "
-                        + "Less frequent cards bank more of them.\n");
         String[] labels = new String[all.length];
         for (int i = 0; i < all.length; i++) {
-            message.append("\n_").append(all[i].label).append(":_ ").append(all[i].desc);
-            labels[i] = all[i] == AnkiPrefs.frequency() ? all[i].label + " (current)" : all[i].label;
+            labels[i] = all[i] == AnkiPrefs.frequency() ? all[i].label + " (now)" : all[i].label;
         }
-        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Card frequency", message.toString(), labels) {
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Cramming",
+                "How often actions ask you to cram.", labels) {
             @Override
             protected void onSelect(int index) {
                 AnkiPrefs.frequency(all[index]);
@@ -227,12 +224,10 @@ public class FlashcardsTab extends Component {
             return;
         }
         String message = platform.mediaSummary() + "\n\n"
-                + "AnkiDroid doesn't share images and audio with other apps, so the game keeps its own copy. "
-                + "In AnkiDroid, export a deck (or the whole collection) with _Include media_ ticked "
-                + "and share it to Cram Dungeon, or save it and import it here. "
-                + "Exporting again later adds the new files.";
-        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Card media", message,
-                "Import an export file", "Clear imported media") {
+                + "To see your cards' pictures and hear their sounds, export your deck from AnkiDroid "
+                + "with _Include media_ ticked and share it to Cram Dungeon.";
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Pictures & sounds", message,
+                "Add from a file", "Remove all") {
             @Override
             protected void onSelect(int index) {
                 if (index == 0) {
@@ -245,9 +240,9 @@ public class FlashcardsTab extends Component {
     }
 
     private static void confirmClear(AnkiPlatform platform) {
-        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Clear card media?",
-                platform.mediaSummary() + " Cards will show them as missing until you import again.",
-                "Clear", "Keep") {
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Remove all?",
+                "Your cards will show their pictures and sounds as missing until you add them again.",
+                "Remove", "Keep") {
             @Override
             protected void onSelect(int index) {
                 if (index == 0) {

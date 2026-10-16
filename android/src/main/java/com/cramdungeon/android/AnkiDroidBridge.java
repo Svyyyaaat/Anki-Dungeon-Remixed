@@ -100,6 +100,8 @@ public class AnkiDroidBridge implements AnkiPlatform {
     private static class CardRef {
         final long noteId;
         final int ord;
+        // never studied; filled in when the card is rendered
+        boolean isNew;
 
         CardRef(long noteId, int ord) {
             this.noteId = noteId;
@@ -258,7 +260,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
                 }
                 answer(graded, ease, totalMs);
             });
-            post(() -> onDone.accept(CardOutcome.answered(ease, thinkMs, timedOut)));
+            post(() -> onDone.accept(CardOutcome.answered(ease, thinkMs, timedOut, graded.isNew)));
         }
 
         @Override
@@ -372,10 +374,10 @@ public class AnkiDroidBridge implements AnkiPlatform {
     public String mediaSummary() {
         int count = media.count();
         if (count == 0) {
-            return "No card media imported yet.";
+            return "No pictures or sounds added yet.";
         }
-        return count + (count == 1 ? " media file" : " media files")
-                + " imported (" + MediaImportActivity.megabytes(media.bytes()) + ").";
+        return count + (count == 1 ? " file" : " files")
+                + " added (" + MediaImportActivity.megabytes(media.bytes()) + ").";
     }
 
     @Override
@@ -447,6 +449,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
             question = c.getString(0);
             answer = c.getString(1);
         }
+        card.isNew = isNew(cardUri);
 
         long modelId = -1;
         String flds = "";
@@ -484,12 +487,22 @@ public class AnkiDroidBridge implements AnkiPlatform {
         config.put("startElapsedMs", startElapsedMs);
         config.put("canUndo", canUndo);
         config.put("missingMedia", missingMedia(question, answer));
+        config.put("newCard", card.isNew);
 
         return template()
                 .replace("%%CONFIG%%", config.toString())
                 .replace("%%CSS%%", type.css)
                 .replace("%%QUESTION%%", clean(question, questionTts))
                 .replace("%%ANSWER%%", clean(answer, answerTts));
+    }
+
+    /** Whether the card was never studied. Older AnkiDroid versions don't report it: then not new. */
+    private boolean isNew(Uri cardUri) {
+        try (Cursor c = resolver().query(cardUri, new String[]{"type"}, null, null, null)) {
+            return c != null && c.moveToFirst() && c.getInt(0) == 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private NoteType noteType(long modelId) {

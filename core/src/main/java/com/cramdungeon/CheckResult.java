@@ -34,7 +34,8 @@ public class CheckResult {
             return SKIPPED;
         }
         if (outcome.ease <= CardOutcome.AGAIN || outcome.timedOut) {
-            return new CheckResult(false, false, 0f);
+            // nobody can know a card they've never seen: missing one plays out as if no card was asked
+            return outcome.newCard ? SKIPPED : new CheckResult(false, false, 0f);
         }
         float used = Math.min(1f, outcome.thinkTimeMs / (float) Math.max(1, thinkTimeLimitMs));
         float p = 1f - 0.5f * used;

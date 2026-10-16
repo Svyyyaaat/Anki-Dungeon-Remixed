@@ -50,4 +50,15 @@ public class CheckResultTest {
         assertTrue(CheckResult.from(CardOutcome.noCards(), LIMIT).skipped);
         assertTrue(CheckResult.from(CardOutcome.error(), LIMIT).skipped);
     }
+
+    @Test
+    public void missingANewCardIsNotPunished() {
+        CheckResult missed = CheckResult.from(CardOutcome.answered(CardOutcome.AGAIN, 1000, false, true), LIMIT);
+        assertTrue(missed.skipped);
+        CheckResult timedOut = CheckResult.from(CardOutcome.answered(CardOutcome.GOOD, LIMIT, true, true), LIMIT);
+        assertTrue(timedOut.skipped);
+        CheckResult passed = CheckResult.from(CardOutcome.answered(CardOutcome.GOOD, 0, false, true), LIMIT);
+        assertTrue(passed.correct);
+        assertEquals(1f, passed.performance, 1e-6);
+    }
 }

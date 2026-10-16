@@ -79,9 +79,9 @@ public class MediaImportActivity extends Activity {
             pick.setType("*/*");
             try {
                 startActivityForResult(pick, PICK_FILE);
-                message.setText("Choose an .apkg or .colpkg exported from AnkiDroid with media.");
+                message.setText("Pick the deck you exported from AnkiDroid.");
             } catch (ActivityNotFoundException e) {
-                finishWith("This device has no file picker. Share the export from AnkiDroid instead.");
+                finishWith("Couldn't open the file picker. Share your deck to Cram Dungeon from AnkiDroid instead.");
             }
         }
     }
@@ -118,7 +118,7 @@ public class MediaImportActivity extends Activity {
         ok.setVisibility(View.GONE);
         bar.setVisibility(View.VISIBLE);
         bar.setIndeterminate(true);
-        message.setText("Reading the export…");
+        message.setText("Opening…");
 
         CardMedia media = store(this);
         new Thread(() -> {
@@ -131,8 +131,8 @@ public class MediaImportActivity extends Activity {
                 text = summary(r);
             } catch (Exception e) {
                 Log.e(TAG, "media import failed", e);
-                text = "Couldn't read this file. Share an .apkg or .colpkg export from AnkiDroid"
-                        + " (Export → Include media).";
+                text = "Couldn't read this file. In AnkiDroid, export your deck with “Include media”"
+                        + " ticked and share it here.";
             }
             final String result = text;
             runOnUiThread(() -> finishWith(result));
@@ -154,16 +154,16 @@ public class MediaImportActivity extends Activity {
         bar.setIndeterminate(false);
         bar.setMax(Math.max(1, total));
         bar.setProgress(done);
-        message.setText(String.format(Locale.ROOT, "Copying media… %d / %d", done, total));
+        message.setText(String.format(Locale.ROOT, "Copying… %d / %d", done, total));
     }
 
     private static String summary(CardMedia.Result r) {
         if (r.total() == 0) {
-            return "This export has no media. In AnkiDroid, export again with “Include media” ticked.";
+            return "This file has no pictures or sounds. In AnkiDroid, export again with “Include media” ticked.";
         }
         StringBuilder sb = new StringBuilder();
         if (r.added + r.updated == 0) {
-            sb.append("All ").append(r.unchanged).append(" media files were already here.");
+            sb.append("You already have all of these.");
         } else {
             sb.append("Added ").append(r.added).append(r.added == 1 ? " file" : " files");
             if (r.updated > 0) {
@@ -222,7 +222,7 @@ public class MediaImportActivity extends Activity {
         panel.setMinimumWidth(dp(280));
 
         TextView title = new TextView(this);
-        title.setText("Card media");
+        title.setText("Pictures & sounds");
         title.setTypeface(font);
         title.setTextColor(TITLE_COLOR);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);

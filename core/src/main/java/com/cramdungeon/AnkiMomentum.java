@@ -13,23 +13,21 @@ import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 public final class AnkiMomentum {
 
     public enum Frequency {
-        OFTEN("Often", "Free checks after 2 good answers in a row; the bank holds 3, plus 1 per chapter.",
-                2, 3, 7, 0.6f),
-        NORMAL("Normal", "Free checks after any good answer; the bank holds 5, plus 1 per chapter.",
-                1, 5, 9, 0.5f),
-        REDUCED("Reduced", "Free checks after any passed card, even a Hard one; the bank holds 8, plus 1 per chapter.",
-                1, 8, 12, 0.4f);
+        // banks after 2 good answers in a row, 3 checks (+1 per chapter)
+        OFTEN("Often", 2, 3, 7, 0.6f),
+        // banks after any good answer, 5 checks (+1 per chapter)
+        NORMAL("Normal", 1, 5, 9, 0.5f),
+        // banks after any passed card, Hard too, 8 checks (+1 per chapter)
+        REDUCED("Reduced", 1, 8, 12, 0.4f);
 
         public final String label;
-        public final String desc;
         final int minStreak;
         final int baseCharges;
         final int maxCharges;
         final float threshold;
 
-        Frequency(String label, String desc, int minStreak, int baseCharges, int maxCharges, float threshold) {
+        Frequency(String label, int minStreak, int baseCharges, int maxCharges, float threshold) {
             this.label = label;
-            this.desc = desc;
             this.minStreak = minStreak;
             this.baseCharges = baseCharges;
             this.maxCharges = maxCharges;
