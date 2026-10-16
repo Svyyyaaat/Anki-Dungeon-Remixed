@@ -1,8 +1,9 @@
 """Themed (Material You) launcher icon as a vector drawable.
 
 Line art in the style of Shattered's own themed icon: thick, even, rounded
-strokes. Lid sides behind a card holding the あ, the chest's rim split around
-the lock, box sides and base, and a lock plate with a keyhole cut out.
+strokes. An open chest: the lid swung up behind, a card with the あ standing
+up out of the box, the box's rim split around a lock plate with a keyhole cut
+out. Parts that sit behind something stop short of it instead of crossing it.
 Run from the repo root: python3 tools/art/mono_vector.py
 """
 import math
@@ -57,31 +58,40 @@ def keyhole(cx, top_cy, r, stem_w0, stem_w1, bottom):
     p += 'Q%s,%s %s,%s' % (f(cx - stem_w1 / 2), f(bottom), f(cx - stem_w1 / 2), f(bottom - 0.8))
     return p + 'Z'
 
-def shapes(glyph):
-    S = 5.5           # stroke weight of the line art
-    out = []
-    # lid sides behind the card
-    out.append(('nonZero', rr(26, 30, 26 + S, 62, S / 2, br=False, bl=False) + rr(82 - S, 30, 82, 62, S / 2, br=False, bl=False)))
-    # card rising out of the chest: rounded top, sides run down into the chest
-    out.append(('nonZero', rr(36, 19, 72, 19 + S, 5, br=False, bl=False)
-                + rr(36, 19, 36 + S, 62, 5, tr=False, br=False, bl=False)
-                + rr(72 - S, 19, 72, 62, 5, tl=False, br=False, bl=False)))
-    # the あ
-    out.append(('nonZero', glyph))
-    # chest: front rim split around the lock, box sides and base
-    out.append(('nonZero', rr(26, 60, 46.5, 60 + S + 1, 3, br=False) + rr(61.5, 60, 82, 60 + S + 1, 3, bl=False)
-                + rr(26, 60, 26 + S, 86, 3, tr=False, br=False) + rr(82 - S, 60, 82, 86, 3, tl=False, bl=False)
-                + rr(26, 86 - S, 82, 86, 4, tl=False, tr=False)))
-    # lock plate with a keyhole cut out
-    out.append(('evenOdd', rr(48.5, 57, 59.5, 76, 3.5) + keyhole(54, 64, 2.6, 2.2, 3.2, 71.5)))
-    return out
+S = 5.5               # stroke weight of the line art
+GLYPH_PIVOT = (54, 40.5)
+GLYPH_SCALE = 0.85
+GLYPH_SHIFT = (0, -2.5)   # the あ sits at (54, 38) on the card
 
-# the drawing spans y 19..86; scale it into Shattered's footprint (about 26..80) around the centre
-SCALE = 0.9
-PIVOT = (54, 52.5)
+def shapes():
+    """('stroke', path) line art, ('fill', path, rule) solid shapes; drawn in order."""
+    return [
+        # lid swung open behind the card: its sides and the corners either side of the card
+        ('stroke', 'M29,51.2 L24,34 Q23,30 27,30 H29.2'),
+        ('stroke', 'M79,51.2 L84,34 Q85,30 81,30 H78.8'),
+        # the card, its bottom inside the box
+        ('stroke', 'M38,51.25 V22 Q38,18 42,18 H66 Q70,18 70,22 V51.25'),
+        # box: rim split around the lock, sides and base
+        ('stroke', 'M28,60 H46 M62,60 H80 M28,60 V84 H80 V60'),
+        # lock plate with a keyhole cut out
+        ('fill', rr(48.5, 56, 59.5, 73, 3.5) + keyhole(54, 63, 2.4, 2, 3, 69.5), 'evenOdd'),
+    ]
+
+# keep the drawing inside the themed icon's circle
+SCALE = 0.78
+PIVOT = (54, 53)
 
 def svg(glyph, bg=None, fg='#000', size=432, circle=False):
-    body = ''.join('<path fill-rule="%s" d="%s"/>' % ('evenodd' if r == 'evenOdd' else 'nonzero', d) for r, d in shapes(glyph))
+    body = ''
+    for sh in shapes():
+        if sh[0] == 'stroke':
+            body += ('<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="round" '
+                     'stroke-linejoin="round"/>' % (sh[1], fg, f(S)))
+        else:
+            body += '<path fill-rule="%s" d="%s"/>' % ('evenodd' if sh[2] == 'evenOdd' else 'nonzero', sh[1])
+    body += ('<path d="%s" transform="translate(%s %s) translate(%s %s) scale(%s) translate(%s %s)"/>'
+             % (glyph, f(GLYPH_SHIFT[0]), f(GLYPH_SHIFT[1]), f(GLYPH_PIVOT[0]), f(GLYPH_PIVOT[1]),
+                f(GLYPH_SCALE), f(-GLYPH_PIVOT[0]), f(-GLYPH_PIVOT[1])))
     defs = ''
     group_attr = ''
     if circle:
@@ -94,15 +104,27 @@ def svg(glyph, bg=None, fg='#000', size=432, circle=False):
             % (size, size, vb, defs, back, fg, group_attr, tf, body))
 
 def vector_drawable(glyph):
-    paths = ''.join('\n    <path\n        android:fillColor="#FF000000"\n        android:fillType="%s"\n        android:pathData="%s" />' % (r, d)
-                    for r, d in shapes(glyph))
+    items = ''
+    for sh in shapes():
+        if sh[0] == 'stroke':
+            items += ('\n    <path\n        android:strokeColor="#FF000000"\n        android:strokeWidth="%s"\n'
+                      '        android:strokeLineCap="round"\n        android:strokeLineJoin="round"\n'
+                      '        android:pathData="%s" />' % (f(S), sh[1]))
+        else:
+            items += ('\n    <path\n        android:fillColor="#FF000000"\n        android:fillType="%s"\n'
+                      '        android:pathData="%s" />' % (sh[2], sh[1]))
+    items += ('\n    <group\n        android:pivotX="%s"\n        android:pivotY="%s"\n        android:scaleX="%s"\n'
+              '        android:scaleY="%s"\n        android:translateX="%s"\n        android:translateY="%s">\n'
+              '      <path\n          android:fillColor="#FF000000"\n          android:pathData="%s" />\n    </group>'
+              % (f(GLYPH_PIVOT[0]), f(GLYPH_PIVOT[1]), f(GLYPH_SCALE), f(GLYPH_SCALE),
+                 f(GLYPH_SHIFT[0]), f(GLYPH_SHIFT[1]), glyph))
     return ('<?xml version="1.0" encoding="utf-8"?>\n'
             '<!-- Themed (Material You) launcher icon. Generated by tools/art/mono_vector.py -->\n'
             '<vector xmlns:android="http://schemas.android.com/apk/res/android"\n'
             '    android:width="108dp"\n    android:height="108dp"\n'
             '    android:viewportWidth="108"\n    android:viewportHeight="108">\n'
             '  <group\n      android:pivotX="%s"\n      android:pivotY="%s"\n      android:scaleX="%s"\n      android:scaleY="%s">%s\n  </group>\n</vector>\n'
-            % (f(PIVOT[0]), f(PIVOT[1]), f(SCALE), f(SCALE), paths.replace('\n    ', '\n      ')))
+            % (f(PIVOT[0]), f(PIVOT[1]), f(SCALE), f(SCALE), items.replace('\n    ', '\n      ')))
 
 def write_repo(root):
     xml = vector_drawable(GLYPH)
