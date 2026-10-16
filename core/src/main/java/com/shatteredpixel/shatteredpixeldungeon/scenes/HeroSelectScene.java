@@ -22,7 +22,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.scenes;
 
 import com.cramdungeon.Kitsune;
-
+import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Challenges;
 import com.shatteredpixel.shatteredpixeldungeon.Chrome;
@@ -58,6 +58,7 @@ import com.watabou.input.PointerEvent;
 import com.watabou.noosa.Camera;
 import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.Game;
+import com.watabou.noosa.audio.Sample;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.NinePatch;
 import com.watabou.noosa.PointerArea;
@@ -133,6 +134,35 @@ public class HeroSelectScene extends PixelScene {
 		PixelScene.align(background);
 		add(background);
 
+		//Cram Dungeon: tapping the splash art 9 times starts the run with the Kitsune's look.
+		//Added before the buttons, so it only gets the taps that miss them.
+		add(new PointerArea(0, 0, Camera.main.width, Camera.main.height){
+			private int taps;
+			private float lastTap;
+			private HeroClass tappedClass;
+
+			@Override
+			protected void onClick(PointerEvent event) {
+				HeroClass cl = GamesInProgress.selectedClass;
+				if (cl == null || !cl.isUnlocked()) {
+					taps = 0;
+					return;
+				}
+				float now = Game.timeTotal;
+				if (cl != tappedClass || now - lastTap > Kitsune.TAP_WINDOW) {
+					taps = 0;
+				}
+				tappedClass = cl;
+				lastTap = now;
+				if (++taps >= Kitsune.TAPS) {
+					taps = 0;
+					Kitsune.selected = true;
+					Sample.INSTANCE.play(Assets.Sounds.CHARMS);
+					startRun();
+				}
+			}
+		});
+
 		fadeLeft = new Image(TextureCache.createGradient(0xFF000000, 0xFF000000, 0x00000000));
 		fadeLeft.x = background.x-2;
 		fadeLeft.scale.set(3, background.height());
@@ -153,16 +183,7 @@ public class HeroSelectScene extends PixelScene {
 			@Override
 			protected void onClick() {
 				super.onClick();
-
-				if (GamesInProgress.selectedClass == null) return;
-
-				Dungeon.hero = null;
-				Dungeon.daily = Dungeon.dailyReplay = false;
-				Dungeon.initSeed();
-				ActionIndicator.clearAction();
-				InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
-
-				Game.switchScene( InterlevelScene.class );
+				startRun();
 			}
 		};
 		startBtn.icon(Icons.get(Icons.ENTER));
@@ -195,14 +216,10 @@ public class HeroSelectScene extends PixelScene {
 		add(infoButton);
 
 		for (HeroClass cl : HeroClass.values()){
-			HeroBtn button = new HeroBtn(cl, false);
+			HeroBtn button = new HeroBtn(cl);
 			add(button);
 			heroBtns.add(button);
 		}
-		//Cram Dungeon: the Kitsune, a Mage run with her own look
-		HeroBtn kitsuneBtn = new HeroBtn(HeroClass.MAGE, true);
-		add(kitsuneBtn);
-		heroBtns.add(kitsuneBtn);
 
 		optionsPane = new GameOptions();
 		optionsPane.visible = optionsPane.active = false;
@@ -395,7 +412,7 @@ public class HeroSelectScene extends PixelScene {
 		resetFade();
 
 		if (GamesInProgress.selectedClass != null){
-			setSelectedHero(GamesInProgress.selectedClass, Kitsune.selected);
+			setSelectedHero(GamesInProgress.selectedClass);
 		}
 
 		if (Badges.isUnlocked(Badges.Badge.VICTORY) && !SPDSettings.victoryNagged()) {
@@ -405,6 +422,18 @@ public class HeroSelectScene extends PixelScene {
 
 		fadeIn();
 
+	}
+
+	private void startRun(){
+		if (GamesInProgress.selectedClass == null) return;
+
+		Dungeon.hero = null;
+		Dungeon.daily = Dungeon.dailyReplay = false;
+		Dungeon.initSeed();
+		ActionIndicator.clearAction();
+		InterlevelScene.mode = InterlevelScene.Mode.DESCEND;
+
+		Game.switchScene( InterlevelScene.class );
 	}
 
 	private void updateOptionsColor(){
@@ -418,12 +447,7 @@ public class HeroSelectScene extends PixelScene {
 	}
 
 	private void setSelectedHero(HeroClass cl){
-		setSelectedHero(cl, false);
-	}
-
-	private void setSelectedHero(HeroClass cl, boolean kitsune){
 		GamesInProgress.selectedClass = cl;
-		Kitsune.selected = kitsune && cl == HeroClass.MAGE;
 		GamesInProgress.randomizedClass = false;
 
 		try {
@@ -441,12 +465,12 @@ public class HeroSelectScene extends PixelScene {
 
 		if (landscape()) {
 
-			heroName.text(Messages.titleCase(Kitsune.selected ? Kitsune.TITLE : cl.title()));
+			heroName.text(Messages.titleCase(cl.title()));
 			heroName.hardlight(Window.TITLE_COLOR);
 			heroName.setPos(insets.left + (leftPortion - heroName.width() - 20)/2f, heroName.top());
 			align(heroName);
 
-			heroDesc.text(Kitsune.selected ? Kitsune.SHORT_DESC : cl.shortDesc());
+			heroDesc.text(cl.shortDesc());
 			heroDesc.maxWidth(80);
 			heroDesc.setPos(insets.left +(leftPortion - heroDesc.width())/2f, heroName.bottom() + 5);
 			align(heroDesc);
@@ -471,7 +495,7 @@ public class HeroSelectScene extends PixelScene {
 			title.visible = false;
 
 			startBtn.visible = startBtn.active = true;
-			startBtn.text(Messages.titleCase(Kitsune.selected ? Kitsune.TITLE : cl.title()));
+			startBtn.text(Messages.titleCase(cl.title()));
 			startBtn.setSize(startBtn.reqWidth() + 8, 21);
 
 			startBtn.setPos((Camera.main.width - startBtn.width())/2f, (Camera.main.height - insets.bottom - HeroBtn.HEIGHT + 2 - startBtn.height()));
@@ -576,33 +600,23 @@ public class HeroSelectScene extends PixelScene {
 	private class HeroBtn extends StyledButton {
 
 		private HeroClass cl;
-		private boolean kitsune;
 
 		private static final int MIN_WIDTH = 20;
 		private static final int HEIGHT = 24;
 
-		HeroBtn ( HeroClass cl, boolean kitsune ){
+		HeroBtn ( HeroClass cl ){
 			super(Chrome.Type.GREY_BUTTON_TR, "");
 
 			this.cl = cl;
-			this.kitsune = kitsune;
 
-			if (kitsune) {
-				icon(new Image(Kitsune.SPRITES, 0, 15, 12, 15));
-			} else {
-				icon(new Image(cl.spritesheet(), 0, 90, 12, 15));
-			}
+			icon(new Image(cl.spritesheet(), 0, 90, 12, 15));
 
-		}
-
-		private boolean isSelected(){
-			return cl == GamesInProgress.selectedClass && kitsune == Kitsune.selected;
 		}
 
 		@Override
 		public void update() {
 			super.update();
-			if (!isSelected()){
+			if (cl != GamesInProgress.selectedClass){
 				if (!cl.isUnlocked()){
 					icon.brightness(0.1f);
 				} else {
@@ -619,14 +633,14 @@ public class HeroSelectScene extends PixelScene {
 
 			if( !cl.isUnlocked() ){
 				ShatteredPixelDungeon.scene().addToFront( new WndMessage(cl.unlockMsg()));
-			} else if (isSelected()) {
+			} else if (GamesInProgress.selectedClass == cl) {
 				Window w = new WndHeroInfo(cl);
 				if (landscape()){
 					w.offset(Camera.main.width/6, 0);
 				}
 				ShatteredPixelDungeon.scene().addToFront(w);
 			} else {
-				setSelectedHero(cl, kitsune);
+				setSelectedHero(cl);
 			}
 		}
 
@@ -963,7 +977,7 @@ public class HeroSelectScene extends PixelScene {
 							setSelectedHero(randomCls);
 							GamesInProgress.randomizedClass = true;
 						} else {
-							setSelectedHero(GamesInProgress.selectedClass, Kitsune.selected);
+							setSelectedHero(GamesInProgress.selectedClass);
 						}
 					}
 				};

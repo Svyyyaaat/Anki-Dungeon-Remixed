@@ -11,11 +11,22 @@ public class CheckResult {
     public final boolean skipped;
     public final boolean correct;
     public final float performance;
+    /** Played from banked momentum instead of a card. */
+    public final boolean momentum;
 
     public CheckResult(boolean skipped, boolean correct, float performance) {
+        this(skipped, correct, performance, false);
+    }
+
+    private CheckResult(boolean skipped, boolean correct, float performance, boolean momentum) {
         this.skipped = skipped;
         this.correct = correct;
         this.performance = performance;
+        this.momentum = momentum;
+    }
+
+    static CheckResult momentum(float performance) {
+        return new CheckResult(false, true, performance, true);
     }
 
     public static CheckResult from(CardOutcome outcome, long thinkTimeLimitMs) {

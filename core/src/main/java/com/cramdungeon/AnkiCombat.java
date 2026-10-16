@@ -1,28 +1,15 @@
 package com.cramdungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
-import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 
 /**
- * Combat checks with momentum: every exchange with the hero asks a card, but a
- * streak of fast correct answers banks free exchanges played at that speed.
- * The bank grows by one per chapter, since deeper fights take many more swings.
+ * Combat checks: every exchange with the hero asks a card (or spends momentum,
+ * see {@link AnkiMomentum}), and the answer scales the exchange.
  */
 public final class AnkiCombat {
-
-    private static final int BASE_CHARGES = 3;
-    private static final int MAX_CHARGES = 7;
-    private static final int FLOORS_PER_CHAPTER = 5;
-    private static final float MOMENTUM_TIMEOUT = 10f;
-    private static final float CHARGE_THRESHOLD = 0.6f;
-
-    private static int streak;
-    private static int charges;
-    private static float chargePerformance;
-    private static float lastCheckTime = -1000f;
 
     // modifiers for the single exchange being resolved right now
     private static Char modAttacker;
@@ -62,59 +49,20 @@ public final class AnkiCombat {
         final boolean attacking = heroAttacks(attacker, defender);
         final Hero hero = Dungeon.hero;
 
-        if (Actor.now() - lastCheckTime > MOMENTUM_TIMEOUT) {
-            streak = 0;
-            charges = 0;
-        }
-        lastCheckTime = Actor.now();
-
-        if (charges > 0) {
-            charges--;
-            hero.sprite.showStatus(CharSprite.POSITIVE, "Momentum!");
-            resolveWith(attacker, defender, chargePerformance, resolve);
-            return;
-        }
-
         AnkiCheck.request(attacking ? CheckKind.ATTACK : CheckKind.DEFENSE, result -> {
-            lastCheckTime = Actor.now();
             if (result.skipped) {
                 resolve.run();
                 return;
             }
-            if (result.correct) {
-                streak++;
-                if (result.performance >= CHARGE_THRESHOLD) {
-                    charges = charges(streak, Dungeon.depth);
-                    chargePerformance = result.performance;
-                }
-                if (result.fast()) {
+            if (!result.momentum) {
+                if (!result.correct) {
+                    hero.sprite.showStatus(CharSprite.NEGATIVE, attacking ? "Fumble!" : "Exposed!");
+                } else if (result.fast()) {
                     hero.sprite.showStatus(CharSprite.POSITIVE, attacking ? "Precise!" : "Ready!");
                 }
-            } else {
-                streak = 0;
-                charges = 0;
-                hero.sprite.showStatus(CharSprite.NEGATIVE, attacking ? "Fumble!" : "Exposed!");
             }
             resolveWith(attacker, defender, result.performance, resolve);
         });
-    }
-
-    /** Most free exchanges the bank holds on this floor: 3 in the sewers up to 7 in the halls. */
-    static int cap(int depth) {
-        int chapter = Math.max(0, depth - 1) / FLOORS_PER_CHAPTER;
-        return Math.min(MAX_CHARGES, BASE_CHARGES + chapter);
-    }
-
-    /**
-     * Free exchanges banked after {@code streak} correct answers in a row: none for
-     * the first, then half the cap, then one more per answer up to the cap.
-     */
-    static int charges(int streak, int depth) {
-        if (streak < 2) {
-            return 0;
-        }
-        int cap = cap(depth);
-        return Math.min(cap, cap / 2 + streak - 2);
     }
 
     private static void resolveWith(Char attacker, Char defender, float performance, Runnable resolve) {

@@ -4,15 +4,15 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 
 /**
- * The Kitsune: for now a Mage run with her own sprite and tails. She is picked on
- * the hero select screen as her own entry and plays exactly like the Mage, so all
- * of the Mage's talents, items, quests and badges apply unchanged.
+ * The Kitsune: a secret look for any hero. Tapping the class's splash art on the
+ * hero select screen {@link #TAPS} times starts the run with her sprite and a tail;
+ * the class itself plays unchanged.
  */
 public final class Kitsune {
 
-    public static final String TITLE = "kitsune";
-    public static final String SHORT_DESC = "The _Kitsune_ is a fox spirit who studies her way through the dungeon. "
-            + "She grows more tails as her power grows.\n\nFor now she plays exactly like the Mage.";
+    public static final int TAPS = 9;
+    /** Seconds allowed between two taps before the count starts over. */
+    public static final float TAP_WINDOW = 2f;
 
     public static final String SPRITES = "sprites/kitsune.png";
     public static final String TAILS = "sprites/kitsune_tails.png";
@@ -31,7 +31,7 @@ public final class Kitsune {
             {-1, 0}, {0, 0}, {1, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
     };
 
-    /** Whether the Kitsune is the pick on the hero select screen (her class is MAGE). */
+    /** Set by the secret tap right before the run starts; used up by {@link #startRun}. */
     public static boolean selected;
 
     private Kitsune() {
@@ -43,11 +43,10 @@ public final class Kitsune {
 
     /** Called when a new run starts, after the hero class has set the hero up. */
     public static void startRun(Hero hero, HeroClass cls) {
-        hero.kitsune = selected && cls == HeroClass.MAGE;
+        hero.kitsune = selected;
         hero.tails = 1;
-        if (hero.kitsune) {
-            new FoxCharm().collect();
-        }
+        selected = false;
+        AnkiMomentum.reset();
     }
 
     /** Body offset for a frame of the hero sheet, or null when the tails should not show. */

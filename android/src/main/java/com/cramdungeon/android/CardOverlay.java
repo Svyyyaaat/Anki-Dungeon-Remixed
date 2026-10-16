@@ -338,7 +338,7 @@ final class CardOverlay {
     private static void playSounds(String clipsJson) {
         stopSounds();
         CardMedia store = media;
-        if (web == null) {
+        if (web == null || AnkiPrefs.cardMuted()) {
             return;
         }
         try {

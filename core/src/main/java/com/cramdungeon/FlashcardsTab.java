@@ -29,6 +29,7 @@ public class FlashcardsTab extends Component {
     private CheckBox chkSimple;
     private CheckBox chkTts;
     private RedButton btnMedia;
+    private RedButton btnFrequency;
     private ColorBlock sep2;
     // set up in createChildren(): Component's constructor calls it before field
     // initializers run, so an initializer here would still be null at that point
@@ -110,6 +111,14 @@ public class FlashcardsTab extends Component {
         };
         add(btnMedia);
 
+        btnFrequency = new RedButton(frequencyLabel()) {
+            @Override
+            protected void onClick() {
+                showFrequencyOptions(this);
+            }
+        };
+        add(btnFrequency);
+
         sep2 = new ColorBlock(1, 1, 0xFF000000);
         add(sep2);
 
@@ -151,7 +160,13 @@ public class FlashcardsTab extends Component {
             chkSimple.setRect(0, optThink.bottom() + GAP, width, BTN_HEIGHT);
             chkTts.setRect(0, chkSimple.bottom() + GAP, width, BTN_HEIGHT);
         }
-        btnMedia.setRect(0, chkTts.bottom() + GAP, width, BTN_HEIGHT);
+        if (wide) {
+            btnFrequency.setRect(0, chkTts.bottom() + GAP, width / 2f - 1, BTN_HEIGHT);
+            btnMedia.setRect(width / 2f + 1, btnFrequency.top(), width / 2f - 1, BTN_HEIGHT);
+        } else {
+            btnFrequency.setRect(0, chkTts.bottom() + GAP, width, BTN_HEIGHT);
+            btnMedia.setRect(0, btnFrequency.bottom() + GAP, width, BTN_HEIGHT);
+        }
 
         sep2.size(width, 1);
         sep2.y = btnMedia.bottom() + GAP;
@@ -181,6 +196,29 @@ public class FlashcardsTab extends Component {
         if (chkEnabled.checked() != AnkiPrefs.enabled()) {
             chkEnabled.checked(AnkiPrefs.enabled());
         }
+    }
+
+    private static String frequencyLabel() {
+        return "Cards: " + AnkiPrefs.frequency().label;
+    }
+
+    private static void showFrequencyOptions(RedButton button) {
+        AnkiMomentum.Frequency[] all = AnkiMomentum.Frequency.values();
+        StringBuilder message = new StringBuilder(
+                "Momentum turns good answers into free checks that skip the card. "
+                        + "Less frequent cards bank more of them.\n");
+        String[] labels = new String[all.length];
+        for (int i = 0; i < all.length; i++) {
+            message.append("\n_").append(all[i].label).append(":_ ").append(all[i].desc);
+            labels[i] = all[i] == AnkiPrefs.frequency() ? all[i].label + " (current)" : all[i].label;
+        }
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Card frequency", message.toString(), labels) {
+            @Override
+            protected void onSelect(int index) {
+                AnkiPrefs.frequency(all[index]);
+                button.text(frequencyLabel());
+            }
+        });
     }
 
     private static void showMediaOptions() {

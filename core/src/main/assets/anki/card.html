@@ -220,6 +220,28 @@ button.snd:active {
     background: transparent !important;
     color: var(--ink) !important;
 }
+
+/* card images and media scale down to the panel, never past it */
+#content img, #content video {
+    max-width: 100% !important;
+    max-height: 40vh !important;
+    width: auto !important;
+    height: auto !important;
+    object-fit: contain;
+}
+
+#content svg, #content canvas, #content iframe {
+    max-width: 100% !important;
+}
+
+#content table, #content pre {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+#content {
+    overflow-wrap: anywhere;
+}
 </style>
 </head>
 <body class="card nightMode night_mode">

@@ -45,7 +45,7 @@ card refers to files that haven't been imported, it says so under the card.
 Text-to-speech fields (`{{tts ja_JP:Field}}`, `[anki:tts]` tags) are read by the
 device's TTS voice (turn off with *Read TTS fields*); a language with no voice
 installed stays silent. Card audio has its own volume slider in **Settings >
-Audio**. The game's music and sound effects start at 6/10.
+Audio**, next to a mute switch. The game's music and sound effects start at 6/10.
 
 A correct answer scores 1.0 when instant and drops to 0.5 at the time limit.
 Hard counts a little lower and Easy a little higher. A miss scores 0.
@@ -54,7 +54,6 @@ Hard counts a little lower and Easy a little higher. A miss scores 0.
 |---|---|
 | Your attack (melee, thrown weapons, spirit bow, wand bolts) | Accuracy x0.5-1.5, damage x0.75-1.25 |
 | An enemy's attack on you (melee, spells such as warlock and shaman bolts, the evil eye's beam) | Evasion x0.5-1.5, damage taken x1.25-0.75 |
-| Momentum | Correct answers in a row (scoring 0.6+) bank free exchanges played at that score: none for the first, then half the cap, then one more per answer. The cap is 3 in the sewers and grows by one per chapter, to 7 in the demon halls. A miss, or 10 turns without a fight, resets it |
 | Drinking an unknown potion | Pass: it acts as a helpful potion. Miss: as a harmful one. If it already is that kind it works as itself; otherwise a random potion of that kind takes effect and yours stays unidentified |
 | Throwing an unknown potion | The reverse: pass makes it harmful (for whatever it hits) |
 | Potion of Strength (or Mastery) | Never comes out of a stand-in. A miss identifies it and it slips from your hands, gone |
@@ -66,16 +65,29 @@ Hard counts a little lower and Easy a little higher. A miss scores 0.
 | Passive search while walking | Hidden doors and traps the usual roll would find are only revealed after a passed card (at most one card per 15 turns) |
 | Active search | Pass widens the radius by 2 (3 when fast). Miss is a plain search |
 
+**Momentum.** Good answers in a row bank free checks, played at the score of
+the answer that banked them. Every trigger above builds and spends the same
+bank: a free check shows *Momentum!* instead of a card. A miss, or 20 turns
+without any check, empties it. How quickly it fills is the *Card frequency*
+setting:
+
+| Card frequency | Banks after | Counts as good | Bank size (sewers → demon halls) | Cards per check at 85% correct |
+|---|---|---|---|---|
+| Often | 2 good answers in a row | score 0.6+ | 3 → 7 | about 1 in 3 |
+| Normal | 1 good answer | score 0.5+ | 5 → 9 | about 1 in 4–5 |
+| Reduced | 1 passed card, Hard too | score 0.4+ | 8 → 12 | about 1 in 7 |
+
+Each streak starts at half the bank and adds one per further answer.
+
 Known potions and scrolls behave as usual. When the deck has nothing due, the
 game offers to switch decks, learn 10 new cards, or carry on without cards.
 Every trigger can be turned off on its own in settings.
 
-## Kitsune (work in progress)
+## Kitsune (secret)
 
-A new hero, picked as her own entry on the hero select screen. For now she
-plays exactly like the Mage (same staff, talents, subclasses and badges) and
-only her look is new: her own sprite and up to three fox tails. She starts with
-a _fox charm (test)_ that cycles her tails between 1 and 3.
+A secret look for any hero: on the hero select screen, tap the selected class's
+splash art 9 times (instead of the start button) and the run starts with that
+class's abilities but the Kitsune's sprite and one fox tail.
 
 ## Limitations
 

@@ -216,7 +216,7 @@ public class Hero extends Char {
 	private static final float HUNGER_FOR_SEARCH	= 6f;
 	
 	public HeroClass heroClass = HeroClass.ROGUE;
-	//Cram Dungeon: the Kitsune is a Mage run with her own look (com.cramdungeon.Kitsune)
+	//Cram Dungeon: the Kitsune, a secret look for any class (com.cramdungeon.Kitsune)
 	public boolean kitsune;
 	public int tails = 1;
 	public HeroSubClass subClass = HeroSubClass.NONE;

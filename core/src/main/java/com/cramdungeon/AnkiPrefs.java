@@ -10,6 +10,8 @@ public final class AnkiPrefs {
     public static final String SIMPLE_GRADING = "anki_simple_grading";
     public static final String TTS = "anki_tts";
     public static final String CARD_VOLUME = "anki_card_volume";
+    public static final String CARD_MUTE = "anki_card_mute";
+    public static final String FREQUENCY = "anki_frequency";
 
     public static final String TRIGGER_COMBAT = "anki_trigger_combat";
     public static final String TRIGGER_ITEMS = "anki_trigger_items";
@@ -83,10 +85,35 @@ public final class AnkiPrefs {
         GameSettings.put(CARD_VOLUME, value);
     }
 
+    public static boolean cardMuted() {
+        return GameSettings.getBoolean(CARD_MUTE, false);
+    }
+
+    public static void cardMuted(boolean value) {
+        GameSettings.put(CARD_MUTE, value);
+    }
+
     /** The same curve the game uses for its own volume sliders. */
     public static float cardVolumeLevel() {
+        if (cardMuted()) {
+            return 0f;
+        }
         int v = cardVolume();
         return v * v / 100f;
+    }
+
+    public static AnkiMomentum.Frequency frequency() {
+        String name = GameSettings.getString(FREQUENCY, AnkiMomentum.Frequency.OFTEN.name());
+        for (AnkiMomentum.Frequency f : AnkiMomentum.Frequency.values()) {
+            if (f.name().equals(name)) {
+                return f;
+            }
+        }
+        return AnkiMomentum.Frequency.OFTEN;
+    }
+
+    public static void frequency(AnkiMomentum.Frequency value) {
+        GameSettings.put(FREQUENCY, value.name());
     }
 
     public static boolean trigger(String key) {

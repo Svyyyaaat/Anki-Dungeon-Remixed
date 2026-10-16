@@ -76,6 +76,11 @@ public final class AnkiCheck {
             onResult.accept(CheckResult.SKIPPED);
             return;
         }
+        CheckResult banked = AnkiMomentum.spend();
+        if (banked != null) {
+            onResult.accept(banked);
+            return;
+        }
         synchronized (AnkiCheck.class) {
             queue.add(new Pending(kind, onResult));
         }
@@ -104,7 +109,9 @@ public final class AnkiCheck {
                 exhausted = true;
                 deckFinished();
             }
-            finish(next, CheckResult.from(outcome, limit));
+            CheckResult result = CheckResult.from(outcome, limit);
+            AnkiMomentum.record(result);
+            finish(next, result);
         });
     }
 
@@ -219,6 +226,7 @@ public final class AnkiCheck {
         AnkiPrefs.deck(deck.id, deck.name);
         AnkiPrefs.enabled(true);
         exhausted = false;
+        AnkiMomentum.reset();
         platform.deckChanged();
         GLog.p("Now studying: %s", deck.name);
     }
