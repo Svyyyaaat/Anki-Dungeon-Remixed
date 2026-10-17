@@ -333,19 +333,10 @@ public class AnkiDroidBridge implements AnkiPlatform {
     public void learnNewCards(long deckId, String deckName, int count, Consumer<Integer> onDone) {
         io.execute(() -> {
             int found = 0;
-            String search = "deck:\"" + deckName.replace("\"", "\\\"") + "\" is:new";
-            try (Cursor notes = resolver().query(NOTES, new String[]{"_id"}, search, null, null)) {
-                while (notes != null && notes.moveToNext() && found < count) {
-                    long noteId = notes.getLong(0);
-                    Uri cards = Uri.withAppendedPath(Uri.withAppendedPath(NOTES, Long.toString(noteId)), "cards");
-                    try (Cursor c = resolver().query(cards, new String[]{"ord", "type"}, null, null, null)) {
-                        while (c != null && c.moveToNext() && found < count) {
-                            if (c.getInt(1) == 0) { // never studied
-                                extraNew.add(new long[]{noteId, c.getInt(0)});
-                                found++;
-                            }
-                        }
-                    }
+            try {
+                for (long[] card : nextNewCards(deckName, count)) {
+                    extraNew.add(card);
+                    found++;
                 }
             } catch (Exception e) {
                 Log.e(TAG, "looking up new cards failed", e);
@@ -353,6 +344,66 @@ public class AnkiDroidBridge implements AnkiPlatform {
             final int result = found;
             post(() -> onDone.accept(result));
         });
+    }
+
+    // positions in Anki's new queue are searched in growing windows until enough cards turn up
+    private static final int FIRST_POSITION_WINDOW = 64;
+    private static final int MAX_POSITION_WINDOW = 1 << 22;
+
+    /**
+     * The deck's next new cards in Anki's own order (new-queue position), skipping
+     * suspended and buried ones, as {noteId, ord}.
+     */
+    private List<long[]> nextNewCards(String deckName, int count) {
+        String base = "deck:\"" + deckName.replace("\"", "\\\"") + "\" is:new -is:suspended -is:buried";
+        List<long[]> candidates = new ArrayList<>(); // {noteId, ord, position}
+        for (int window = FIRST_POSITION_WINDOW; ; window *= 2) {
+            boolean last = window >= MAX_POSITION_WINDOW;
+            candidates.clear();
+            String search = last ? base : base + " prop:pos<=" + window;
+            try (Cursor notes = resolver().query(NOTES, new String[]{"_id"}, search, null, null)) {
+                while (notes != null && notes.moveToNext()) {
+                    addNewCards(notes.getLong(0), last ? Long.MAX_VALUE : window, candidates);
+                }
+            } catch (RuntimeException e) {
+                if (last) {
+                    throw e;
+                }
+                // an AnkiDroid too old for prop:pos: search the whole deck at once
+                window = MAX_POSITION_WINDOW / 2;
+                continue;
+            }
+            if (candidates.size() >= count || last) {
+                break;
+            }
+        }
+        Collections.sort(candidates, (x, y) -> Long.compare(x[2], y[2]));
+        List<long[]> out = new ArrayList<>();
+        for (int i = 0; i < candidates.size() && i < count; i++) {
+            out.add(new long[]{candidates.get(i)[0], candidates.get(i)[1]});
+        }
+        return out;
+    }
+
+    private void addNewCards(long noteId, long maxPosition, List<long[]> into) {
+        Uri cards = Uri.withAppendedPath(Uri.withAppendedPath(NOTES, Long.toString(noteId)), "cards");
+        try (Cursor c = resolver().query(cards, new String[]{"ord", "type", "queue", "due"}, null, null, null)) {
+            while (c != null && c.moveToNext()) {
+                // type 0: never studied; queue 0: in the new queue (not suspended or buried)
+                if (c.getInt(1) == 0 && c.getInt(2) == 0 && c.getLong(3) <= maxPosition) {
+                    into.add(new long[]{noteId, c.getInt(0), c.getLong(3)});
+                }
+            }
+        } catch (RuntimeException e) {
+            // older AnkiDroid without queue/due columns: the search already left out suspended and buried
+            try (Cursor c = resolver().query(cards, new String[]{"ord", "type"}, null, null, null)) {
+                while (c != null && c.moveToNext()) {
+                    if (c.getInt(1) == 0) {
+                        into.add(new long[]{noteId, c.getInt(0), noteId});
+                    }
+                }
+            }
+        }
     }
 
     @Override
