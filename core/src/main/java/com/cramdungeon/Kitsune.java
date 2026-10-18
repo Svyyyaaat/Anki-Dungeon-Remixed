@@ -46,7 +46,6 @@ public final class Kitsune {
         hero.kitsune = selected;
         hero.tails = 1;
         selected = false;
-        AnkiMomentum.reset();
     }
 
     /** Body offset for a frame of the hero sheet, or null when the tails should not show. */

@@ -2,11 +2,13 @@ package com.cramdungeon;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.TitleScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.watabou.noosa.Game;
 
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.function.Consumer;
@@ -26,8 +28,10 @@ public final class AnkiCheck {
     private static final ArrayDeque<Pending> queue = new ArrayDeque<>();
     private static boolean showing;
 
-    // the chosen deck has no cards left today; cleared on deck change or new cards
+    // the chosen deck has no cards left today; cleared on deck change, new cards or a new session
     private static volatile boolean exhausted;
+    // "Continue without cards": off until the player leaves this game
+    private static volatile boolean pausedThisSession;
     private static boolean setupOffered;
 
     private AnkiCheck() {
@@ -60,7 +64,7 @@ public final class AnkiCheck {
         if (platform == null || Dungeon.hero == null || !Dungeon.hero.isAlive()) {
             return false;
         }
-        if (!AnkiPrefs.enabled() || !AnkiPrefs.trigger(kind.triggerKey) || exhausted) {
+        if (!AnkiPrefs.enabled() || !AnkiPrefs.trigger(kind.triggerKey) || exhausted || pausedThisSession) {
             return false;
         }
         if (platform.status() != AnkiPlatform.Status.READY || !AnkiPrefs.hasDeck()) {
@@ -146,7 +150,8 @@ public final class AnkiCheck {
                 "You went through every card that is due in \"" + deck + "\" today. What now?",
                 "Choose another deck",
                 "Learn " + NEW_CARDS_BATCH + " new cards",
-                "Continue without cards") {
+                "Continue without cards",
+                "Save and quit") {
             @Override
             protected void onSelect(int index) {
                 switch (index) {
@@ -156,8 +161,11 @@ public final class AnkiCheck {
                     case 1:
                         learnNewCards();
                         break;
+                    case 2:
+                        continueWithoutCards();
+                        break;
                     default:
-                        playWithoutCards();
+                        saveAndQuit();
                         break;
                 }
             }
@@ -173,18 +181,43 @@ public final class AnkiCheck {
                 show(() -> new WndOptions("No new cards",
                         "\"" + AnkiPrefs.deckName() + "\" has no unstudied cards left.",
                         "Choose another deck",
-                        "Continue without cards") {
+                        "Continue without cards",
+                        "Save and quit") {
                     @Override
                     protected void onSelect(int index) {
                         if (index == 0) {
                             chooseDeck();
+                        } else if (index == 1) {
+                            continueWithoutCards();
                         } else {
-                            playWithoutCards();
+                            saveAndQuit();
                         }
                     }
                 });
             }
         });
+    }
+
+    /** Called when a run starts or a save is loaded: cards are back on and the deck is checked afresh. */
+    public static void newSession() {
+        pausedThisSession = false;
+        exhausted = false;
+        AnkiMomentum.reset();
+    }
+
+    /** Plays on without cards until the player leaves this game; the setting stays on. */
+    private static void continueWithoutCards() {
+        pausedThisSession = true;
+        GLog.i("No more cards in this game. They're back the next time you start or load a game.");
+    }
+
+    private static void saveAndQuit() {
+        try {
+            Dungeon.saveAll();
+        } catch (IOException e) {
+            Game.reportException(e);
+        }
+        Game.switchScene(TitleScene.class);
     }
 
     public static void playWithoutCards() {

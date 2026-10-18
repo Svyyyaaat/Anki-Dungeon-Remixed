@@ -82,7 +82,9 @@ setting:
 Each streak starts at half the bank and adds one per further answer.
 
 Known potions and scrolls behave as usual. When the deck has nothing due, the
-game offers to switch decks, learn 10 new cards, or carry on without cards.
+game offers to switch decks, learn 10 new cards, carry on without cards (only
+until you leave that game; cards are back the next time you start or load one),
+or save and quit.
 Every trigger can be turned off on its own in settings.
 
 ## Kitsune (secret)
