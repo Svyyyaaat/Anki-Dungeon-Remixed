@@ -201,6 +201,9 @@ public final class AnkiCheck {
     /** Called when a run starts or a save is loaded: cards are back on and the deck is checked afresh. */
     public static void newSession() {
         pausedThisSession = false;
+        synchronized (AnkiCheck.class) {
+            setupOffered = false;
+        }
         exhausted = false;
         AnkiMomentum.reset();
     }
@@ -218,11 +221,6 @@ public final class AnkiCheck {
             Game.reportException(e);
         }
         Game.switchScene(TitleScene.class);
-    }
-
-    public static void playWithoutCards() {
-        AnkiPrefs.enabled(false);
-        GLog.i("Flashcards are off. Turn them back on in Settings > Flashcards.");
     }
 
     /** Asks AnkiDroid for its decks and lets the player pick one. */
@@ -276,7 +274,7 @@ public final class AnkiCheck {
                 if (index == 0) {
                     platform.openAnkiDroid();
                 } else if (index == 1) {
-                    playWithoutCards();
+                    continueWithoutCards();
                 }
             }
         });
@@ -306,7 +304,7 @@ public final class AnkiCheck {
                 if (index == 0) {
                     chooseDeck();
                 } else if (index == 1) {
-                    playWithoutCards();
+                    continueWithoutCards();
                 }
             }
         });
