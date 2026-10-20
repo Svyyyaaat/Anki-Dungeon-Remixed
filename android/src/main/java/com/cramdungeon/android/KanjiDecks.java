@@ -203,7 +203,7 @@ final class KanjiDecks {
         if (existing != null) {
             return existing;
         }
-        JSONArray data = new JSONArray(readAsset("anki/kanji_writing.json.gz", true));
+        JSONArray data = new JSONArray(writingData());
 
         long deckId = createDeck();
         long modelId = writingModel();
@@ -274,6 +274,15 @@ final class KanjiDecks {
     }
 
     // --- helpers
+
+    /** The deck data. The build unpacks .gz assets and drops the extension, so try both forms. */
+    private String writingData() throws IOException {
+        try {
+            return readAsset("anki/kanji_writing.json", false);
+        } catch (IOException e) {
+            return readAsset("anki/kanji_writing.json.gz", true);
+        }
+    }
 
     private String readAsset(String name, boolean gzipped) throws IOException {
         try (InputStream raw = context.getAssets().open(name);
