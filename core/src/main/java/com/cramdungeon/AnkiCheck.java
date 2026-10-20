@@ -32,6 +32,10 @@ public final class AnkiCheck {
 
     // the chosen deck has no cards left today; cleared on deck change, new cards or a new session
     private static volatile boolean exhausted;
+    // the main deck is done for today: cards come from the kanji deck
+    private static volatile boolean onKanjiDeck;
+    // looked for the kanji deck in AnkiDroid this session
+    private static boolean kanjiLookedUp;
     // "Continue without cards": off until the player leaves this game
     private static volatile boolean pausedThisSession;
     private static int softStartLeft;
@@ -118,14 +122,77 @@ public final class AnkiCheck {
 
         final long limit = AnkiPrefs.thinkTimeSeconds() * 1000L;
         CardRequest request = new CardRequest(next.kind.title(), limit, AnkiPrefs.simpleGrading());
-        platform.presentCard(AnkiPrefs.deckId(), request, outcome -> {
+        long deck = onKanjiDeck ? AnkiPrefs.kanjiDeck() : AnkiPrefs.deckId();
+        platform.presentCard(deck, request, outcome -> {
+            if (outcome.kind == CardOutcome.Kind.NO_CARDS && !onKanjiDeck) {
+                // the main deck is done: carry on with the kanji deck, if there is one
+                switchToKanjiDeck(found -> {
+                    if (found) {
+                        retry(next);
+                    } else {
+                        noMoreCards(next, outcome, limit);
+                    }
+                });
+                return;
+            }
             if (outcome.kind == CardOutcome.Kind.NO_CARDS) {
-                exhausted = true;
-                deckFinished();
+                noMoreCards(next, outcome, limit);
+                return;
             }
             CheckResult result = CheckResult.from(outcome, limit);
             AnkiMomentum.record(result);
             finish(next, result);
+        });
+    }
+
+    private static void noMoreCards(Pending pending, CardOutcome outcome, long limit) {
+        exhausted = true;
+        deckFinished();
+        finish(pending, CheckResult.from(outcome, limit));
+    }
+
+    /** Asks for a card for the same check again (now from the other deck). */
+    private static void retry(Pending pending) {
+        synchronized (AnkiCheck.class) {
+            showing = false;
+        }
+        pump();
+    }
+
+    /** A kanji deck was just set up: if the main deck already ran out, cards come back from it. */
+    public static void kanjiDeckReady() {
+        if (exhausted && !onKanjiDeck && AnkiPrefs.kanjiDeck() != AnkiPrefs.deckId()) {
+            exhausted = false;
+            onKanjiDeck = true;
+        }
+    }
+
+    private static void switchToKanjiDeck(Consumer<Boolean> onDone) {
+        if (AnkiPrefs.kanjiMode() == KanjiSetup.Mode.OFF) {
+            onDone.accept(false);
+            return;
+        }
+        long kanji = AnkiPrefs.kanjiDeck();
+        if (kanji != -1) {
+            if (kanji == AnkiPrefs.deckId()) {
+                onDone.accept(false);
+                return;
+            }
+            onKanjiDeck = true;
+            GLog.i(Txt.get("kanji.now_kanji"));
+            onDone.accept(true);
+            return;
+        }
+        if (kanjiLookedUp) {
+            onDone.accept(false);
+            return;
+        }
+        kanjiLookedUp = true;
+        platform.findKanjiDeck(AnkiPrefs.kanjiMode(), deck -> {
+            if (deck != null) {
+                AnkiPrefs.kanjiDeck(deck.id);
+            }
+            switchToKanjiDeck(onDone);
         });
     }
 
@@ -186,6 +253,7 @@ public final class AnkiCheck {
         platform.learnNewCards(AnkiPrefs.deckId(), AnkiPrefs.deckName(), NEW_CARDS_BATCH, found -> {
             if (found > 0) {
                 exhausted = false;
+                onKanjiDeck = false;
                 GLog.p(Txt.get("log.new_joined", found));
             } else {
                 show(() -> new WndOptions(Txt.get("nonew.title"),
@@ -219,6 +287,8 @@ public final class AnkiCheck {
             softStartLeft = AnkiPrefs.softStart() ? SOFT_START_CHECKS : 0;
         }
         exhausted = false;
+        onKanjiDeck = false;
+        kanjiLookedUp = false;
         AnkiMomentum.reset();
         if (platform != null) {
             // the day may have changed since: start again from AnkiDroid's current queue
@@ -275,6 +345,7 @@ public final class AnkiCheck {
         AnkiPrefs.deck(deck.id, deck.name);
         AnkiPrefs.enabled(true);
         exhausted = false;
+        onKanjiDeck = false;
         AnkiMomentum.reset();
         platform.deckChanged();
         GLog.p(Txt.get("log.studying", deck.name));

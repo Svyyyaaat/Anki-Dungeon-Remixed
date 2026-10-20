@@ -135,18 +135,14 @@ public final class KanjiSetup {
         });
     }
 
+    /** The kanji deck is studied once the main deck is done for the day (or is the main deck if there is none). */
     private static void offerStudy(AnkiDeck deck) {
-        if (deck.id == AnkiPrefs.deckId()) {
-            return;
+        AnkiPrefs.kanjiDeck(deck.id);
+        AnkiCheck.kanjiDeckReady();
+        if (!AnkiPrefs.hasDeck()) {
+            AnkiCheck.selectDeck(deck);
+        } else if (deck.id != AnkiPrefs.deckId()) {
+            GLog.p(Txt.get("kanji.after_main", deck.name));
         }
-        AnkiCheck.show(() -> new WndOptions(Txt.get("kanji.study_title"), Txt.get("kanji.study_text", deck.name),
-                Txt.get("kanji.study_yes"), Txt.get("kanji.study_no")) {
-            @Override
-            protected void onSelect(int index) {
-                if (index == 0) {
-                    AnkiCheck.selectDeck(deck);
-                }
-            }
-        });
     }
 }

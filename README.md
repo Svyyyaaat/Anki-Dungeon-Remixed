@@ -91,7 +91,9 @@ deck is chosen) sets up one of two writing decks:
   by `tools/kanji/build_writing_deck.py` from KANJIDIC2 and JMdict (EDRDG, CC
   BY-SA) and KanjiVG (Ulrich Apel, CC BY-SA 3.0).
 
-Both are normal Anki decks, scheduled and synced by Anki. *Off* turns drawing off.
+Both are normal Anki decks, scheduled and synced by Anki. The kanji deck comes
+up once the main deck is done for the day (or is the main deck if none is
+chosen); *Deck finished* only shows when both are done. *Off* turns drawing off.
 
 **Momentum.** Good answers in a row bank free checks, played at the score of
 the answer that banked them. Every trigger above builds and spends the same

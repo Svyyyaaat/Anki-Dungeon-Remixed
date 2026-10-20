@@ -537,6 +537,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
     // ever show reviews, so the game works through a long stretch of the queue in order.
     private static final int QUEUE_BATCH = 100;
     private final ArrayDeque<CardRef> queue = new ArrayDeque<>();
+    private long queueDeck = -1;
     // cards answered from the current batch; they can come back in a refetched one
     private final Set<String> answered = new HashSet<>();
 
@@ -584,6 +585,12 @@ public class AnkiDroidBridge implements AnkiPlatform {
 
     /** The next card of the batch that is still waiting; {@code useCurrent} false fetches a new batch first. */
     private CardRef fromBatch(long deckId, Set<String> exclude, boolean useCurrent) {
+        if (deckId != queueDeck) {
+            // the batch belongs to the other deck (main deck / kanji deck)
+            queue.clear();
+            queueDeck = deckId;
+            useCurrent = false;
+        }
         if (!useCurrent) {
             queue.clear();
             answered.clear();

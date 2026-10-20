@@ -15,6 +15,7 @@ public final class AnkiPrefs {
     public static final String SOFT_START = "anki_soft_start";
     public static final String KANJI_MODE = "anki_kanji_mode";
     public static final String KANJI_ASKED = "anki_kanji_asked";
+    public static final String KANJI_DECK = "anki_kanji_deck";
     public static final String DRAW_TIME = "anki_draw_time";
 
     public static final String TRIGGER_COMBAT = "anki_trigger_combat";
@@ -139,7 +140,19 @@ public final class AnkiPrefs {
     }
 
     public static void kanjiMode(KanjiSetup.Mode value) {
+        if (value != kanjiMode()) {
+            kanjiDeck(-1);
+        }
         GameSettings.put(KANJI_MODE, value.name());
+    }
+
+    /** The kanji deck of the current mode, studied once the main deck is done; -1 if not known yet. */
+    public static long kanjiDeck() {
+        return GameSettings.getLong(KANJI_DECK, -1);
+    }
+
+    public static void kanjiDeck(long id) {
+        GameSettings.put(KANJI_DECK, id);
     }
 
     /** Whether the player was asked which kanji practice they want. */
