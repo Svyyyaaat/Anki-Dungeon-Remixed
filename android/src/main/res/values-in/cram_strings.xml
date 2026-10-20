@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Gambar &amp; suara</string>
+    <string name="cram_media_pick">Pilih dek yang kamu ekspor dari AnkiDroid.</string>
+    <string name="cram_media_no_picker">Tidak bisa membuka pemilih file. Bagikan dekmu ke Cram Dungeon dari AnkiDroid saja.</string>
+    <string name="cram_media_opening">Membuka…</string>
+    <string name="cram_media_copying">Menyalin… %1$d / %2$d</string>
+    <string name="cram_media_failed">Tidak bisa membaca file ini. Di AnkiDroid, ekspor dekmu dengan “Sertakan media” dicentang, lalu bagikan ke sini.</string>
+    <string name="cram_media_no_media">File ini tidak berisi gambar atau suara. Di AnkiDroid, ekspor lagi dengan “Sertakan media” dicentang.</string>
+    <string name="cram_media_all_here">Kamu sudah punya semua file ini.</string>
+    <string name="cram_media_added">File baru: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Diperbarui: %1$d.</string>
+    <string name="cram_media_unchanged">Sudah ada: %1$d.</string>
+    <string name="cram_media_skipped">Tidak bisa dipakai: %1$d.</string>
+    <string name="cram_media_done">File-file ini langsung muncul di kartumu.</string>
+    <string name="cram_media_ok">Oke</string>
+</resources>

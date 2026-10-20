@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Images et sons</string>
+    <string name="cram_media_pick">Choisissez le paquet que vous avez exporté depuis AnkiDroid.</string>
+    <string name="cram_media_no_picker">Impossible d\'ouvrir le sélecteur de fichiers. Partagez plutôt votre paquet avec Cram Dungeon depuis AnkiDroid.</string>
+    <string name="cram_media_opening">Ouverture…</string>
+    <string name="cram_media_copying">Copie… %1$d / %2$d</string>
+    <string name="cram_media_failed">Impossible de lire ce fichier. Dans AnkiDroid, exportez votre paquet en cochant « Inclure les médias » et partagez-le ici.</string>
+    <string name="cram_media_no_media">Ce fichier ne contient ni images ni sons. Dans AnkiDroid, exportez à nouveau en cochant « Inclure les médias ».</string>
+    <string name="cram_media_all_here">Vous les avez déjà tous.</string>
+    <string name="cram_media_added">Nouveaux fichiers : %1$d (%2$s).</string>
+    <string name="cram_media_updated">Mis à jour : %1$d.</string>
+    <string name="cram_media_unchanged">Déjà présents : %1$d.</string>
+    <string name="cram_media_skipped">Inutilisables : %1$d.</string>
+    <string name="cram_media_done">Ils apparaissent tout de suite sur vos cartes.</string>
+    <string name="cram_media_ok">OK</string>
+</resources>

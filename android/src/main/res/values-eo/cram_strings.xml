@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Bildoj kaj sonoj</string>
+    <string name="cram_media_pick">Elektu la kartaron, kiun vi eksportis el AnkiDroid.</string>
+    <string name="cram_media_no_picker">Ne eblis malfermi la dosierelektilon. Anstataŭe kunhavigu vian kartaron al Cram Dungeon el AnkiDroid.</string>
+    <string name="cram_media_opening">Malfermante…</string>
+    <string name="cram_media_copying">Kopiante… %1$d / %2$d</string>
+    <string name="cram_media_failed">Ne eblis legi ĉi tiun dosieron. En AnkiDroid, eksportu vian kartaron kun „Inkluzivi aŭdvidaĵojn“ markita kaj kunhavigu ĝin ĉi tien.</string>
+    <string name="cram_media_no_media">Ĉi tiu dosiero enhavas neniujn bildojn aŭ sonojn. En AnkiDroid, eksportu denove kun „Inkluzivi aŭdvidaĵojn“ markita.</string>
+    <string name="cram_media_all_here">Vi jam havas ĉiujn ĉi tiujn.</string>
+    <string name="cram_media_added">Novaj dosieroj: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Ĝisdatigitaj: %1$d.</string>
+    <string name="cram_media_unchanged">Jam ĉi tie: %1$d.</string>
+    <string name="cram_media_skipped">Ne uzeblaj: %1$d.</string>
+    <string name="cram_media_done">Ili tuj aperas sur viaj kartoj.</string>
+    <string name="cram_media_ok">Bone</string>
+</resources>

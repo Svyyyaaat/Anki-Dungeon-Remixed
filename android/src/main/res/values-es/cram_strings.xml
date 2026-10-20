@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Imágenes y sonidos</string>
+    <string name="cram_media_pick">Elige el mazo que exportaste desde AnkiDroid.</string>
+    <string name="cram_media_no_picker">No se pudo abrir el selector de archivos. Mejor comparte tu mazo con Cram Dungeon desde AnkiDroid.</string>
+    <string name="cram_media_opening">Abriendo…</string>
+    <string name="cram_media_copying">Copiando… %1$d / %2$d</string>
+    <string name="cram_media_failed">No se pudo leer este archivo. En AnkiDroid, exporta tu mazo con “Incluir multimedia” marcado y compártelo aquí.</string>
+    <string name="cram_media_no_media">Este archivo no tiene imágenes ni sonidos. En AnkiDroid, vuelve a exportar con “Incluir multimedia” marcado.</string>
+    <string name="cram_media_all_here">Ya tienes todos estos.</string>
+    <string name="cram_media_added">Archivos nuevos: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Actualizados: %1$d.</string>
+    <string name="cram_media_unchanged">Ya estaban: %1$d.</string>
+    <string name="cram_media_skipped">No se pudieron usar: %1$d.</string>
+    <string name="cram_media_done">Aparecen en tus tarjetas al instante.</string>
+    <string name="cram_media_ok">OK</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Hình ảnh &amp; âm thanh</string>
+    <string name="cram_media_pick">Chọn bộ thẻ bạn đã xuất từ AnkiDroid.</string>
+    <string name="cram_media_no_picker">Không thể mở trình chọn tệp. Thay vào đó, hãy chia sẻ bộ thẻ tới Cram Dungeon từ AnkiDroid.</string>
+    <string name="cram_media_opening">Đang mở…</string>
+    <string name="cram_media_copying">Đang sao chép… %1$d / %2$d</string>
+    <string name="cram_media_failed">Không thể đọc tệp này. Trong AnkiDroid, hãy xuất bộ thẻ với mục “Bao gồm phương tiện” được đánh dấu rồi chia sẻ nó tới đây.</string>
+    <string name="cram_media_no_media">Tệp này không có hình ảnh hay âm thanh nào. Trong AnkiDroid, hãy xuất lại với mục “Bao gồm phương tiện” được đánh dấu.</string>
+    <string name="cram_media_all_here">Bạn đã có tất cả các tệp này rồi.</string>
+    <string name="cram_media_added">Tệp mới: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Đã cập nhật: %1$d.</string>
+    <string name="cram_media_unchanged">Đã có sẵn: %1$d.</string>
+    <string name="cram_media_skipped">Không dùng được: %1$d.</string>
+    <string name="cram_media_done">Chúng sẽ hiện trên thẻ của bạn ngay lập tức.</string>
+    <string name="cram_media_ok">OK</string>
+</resources>

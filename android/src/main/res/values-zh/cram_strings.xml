@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">图片和声音</string>
+    <string name="cram_media_pick">选择你从 AnkiDroid 导出的牌组。</string>
+    <string name="cram_media_no_picker">无法打开文件选择器。请改为从 AnkiDroid 将牌组分享到 Cram Dungeon。</string>
+    <string name="cram_media_opening">正在打开…</string>
+    <string name="cram_media_copying">正在复制… %1$d / %2$d</string>
+    <string name="cram_media_failed">无法读取此文件。请在 AnkiDroid 中勾选“包含媒体”导出牌组，并分享到这里。</string>
+    <string name="cram_media_no_media">此文件不包含图片或声音。请在 AnkiDroid 中勾选“包含媒体”重新导出。</string>
+    <string name="cram_media_all_here">这些文件你都已经有了。</string>
+    <string name="cram_media_added">新文件：%1$d 个（%2$s）。</string>
+    <string name="cram_media_updated">已更新：%1$d 个。</string>
+    <string name="cram_media_unchanged">已存在：%1$d 个。</string>
+    <string name="cram_media_skipped">无法使用：%1$d 个。</string>
+    <string name="cram_media_done">它们会立即显示在你的卡片上。</string>
+    <string name="cram_media_ok">确定</string>
+</resources>
