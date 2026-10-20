@@ -117,7 +117,7 @@ public final class AnkiPrefs {
         GameSettings.put(FREQUENCY, value.name());
     }
 
-    /** No cards for the first few checks after loading a save. */
+    /** No cards for the first few checks after starting or loading a game. */
     public static boolean softStart() {
         return GameSettings.getBoolean(SOFT_START, false);
     }

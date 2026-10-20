@@ -22,7 +22,7 @@ import java.util.function.Supplier;
 public final class AnkiCheck {
 
     public static final int NEW_CARDS_BATCH = 10;
-    /** Checks played without cards after loading a save, with soft start on. */
+    /** Checks played without cards at the start of a session, with soft start on. */
     public static final int SOFT_START_CHECKS = 10;
 
     private static AnkiPlatform platform;
@@ -210,13 +210,13 @@ public final class AnkiCheck {
 
     /**
      * Called when a run starts or a save is loaded: cards are back on and the deck is checked
-     * afresh. With soft start on, a loaded save plays its first few checks without cards.
+     * afresh. With soft start on, the first few checks play without cards.
      */
-    public static void newSession(boolean loadedSave) {
+    public static void newSession() {
         pausedThisSession = false;
         synchronized (AnkiCheck.class) {
             setupOffered = false;
-            softStartLeft = loadedSave && AnkiPrefs.softStart() ? SOFT_START_CHECKS : 0;
+            softStartLeft = AnkiPrefs.softStart() ? SOFT_START_CHECKS : 0;
         }
         exhausted = false;
         AnkiMomentum.reset();
