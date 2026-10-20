@@ -26,6 +26,7 @@ public class WndAnkiDecks extends Window {
                     if (inside(x, y)) {
                         AnkiCheck.selectDeck(deck);
                         hide();
+                        KanjiSetup.askOnce();
                         return true;
                     }
                     return false;

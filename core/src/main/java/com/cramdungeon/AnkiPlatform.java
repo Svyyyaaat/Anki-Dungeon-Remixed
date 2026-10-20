@@ -38,4 +38,18 @@ public interface AnkiPlatform {
 
     /** Drops any session state tied to the previous deck. */
     void deckChanged();
+
+    // --- kanji decks (see KanjiSetup); results come back on the game thread
+
+    /** The kanji deck of that kind already in AnkiDroid, or null. */
+    void findKanjiDeck(KanjiSetup.Mode mode, Consumer<AnkiDeck> onDone);
+
+    /** Suspends the recognition cards of the All in One Kanji deck; reports how many. */
+    void suspendKanjiRecognition(Consumer<Integer> progress, Consumer<Integer> onDone);
+
+    /** Adds the game's own kanji writing deck to AnkiDroid; reports the deck, or null if it failed. */
+    void addKanjiWritingDeck(Consumer<Integer> progress, Consumer<AnkiDeck> onDone);
+
+    /** Opens a web page, e.g. a shared deck on AnkiWeb. */
+    void openUrl(String url);
 }

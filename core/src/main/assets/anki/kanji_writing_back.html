@@ -1,0 +1,51 @@
+{{FrontSide}}
+<hr id="answer">
+<div class="cdk-a">
+  <svg class="cdk-strokes" id="cdk-svg" viewBox="0 0 109 109" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="cdk-readings">
+    <div><span class="cdk-label">音</span> {{Onyomi}}</div>
+    <div><span class="cdk-label">訓</span> {{Kunyomi}}</div>
+  </div>
+  <div class="cdk-list" id="cdk-list"></div>
+</div>
+<script type="application/json" id="cdk-stroke-data">{{Stroke Data}}</script>
+<script>
+(function () {
+  var kanji = "{{Kanji}}";
+  var el = function (id) { return document.getElementById(id); };
+  // the asked word in full
+  var word = el("cdk-word");
+  if (word && word.getAttribute("data-word")) { word.textContent = word.getAttribute("data-word"); }
+
+  // stroke order: every stroke numbered where it starts
+  var ns = "http://www.w3.org/2000/svg";
+  var svg = el("cdk-svg");
+  var strokes = [];
+  try { strokes = JSON.parse(el("cdk-stroke-data").textContent); } catch (e) {}
+  strokes.forEach(function (d, i) {
+    var p = document.createElementNS(ns, "path");
+    p.setAttribute("d", d);
+    p.setAttribute("class", "cdk-stroke");
+    svg.appendChild(p);
+    var m = /^[Mm]\s*([-\d.]+)[,\s]+([-\d.]+)/.exec(d);
+    if (m) {
+      var t = document.createElementNS(ns, "text");
+      t.setAttribute("x", (parseFloat(m[1]) - 4).toFixed(1));
+      t.setAttribute("y", (parseFloat(m[2]) - 2).toFixed(1));
+      t.setAttribute("class", "cdk-num");
+      t.textContent = String(i + 1);
+      svg.appendChild(t);
+    }
+  });
+
+  var words = [];
+  try { words = JSON.parse(el("cdk-words").textContent); } catch (e) {}
+  var list = el("cdk-list");
+  words.forEach(function (w) {
+    var row = document.createElement("div");
+    row.className = "cdk-row";
+    row.textContent = w[0] + "　" + w[1] + "　" + w[2];
+    list.appendChild(row);
+  });
+})();
+</script>

@@ -1,0 +1,22 @@
+.card {
+  font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+  font-size: 18px;
+  text-align: center;
+  color: #222;
+  background: #fff;
+}
+.nightMode .card, .night_mode .card, .card.nightMode, .card.night_mode {
+  color: #eee;
+  background: #1e1e1e;
+}
+.cdk-word { font-size: 44px; letter-spacing: 0.08em; margin-top: 8px; }
+.cdk-reading { font-size: 20px; opacity: 0.85; }
+.cdk-gloss { font-size: 16px; margin-top: 4px; }
+.cdk-meaning { font-size: 13px; opacity: 0.6; margin-top: 8px; }
+.cdk-strokes { width: 150px; height: 150px; margin: 6px auto 0; display: block; }
+.cdk-stroke { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.cdk-num { font-size: 8px; fill: #d0462f; font-family: sans-serif; }
+.cdk-readings { font-size: 16px; margin-top: 8px; }
+.cdk-label { opacity: 0.55; font-size: 13px; }
+.cdk-list { margin-top: 10px; font-size: 15px; opacity: 0.9; }
+.cdk-row { margin: 2px 0; }

@@ -13,7 +13,8 @@ public final class AnkiPrefs {
     public static final String CARD_MUTE = "anki_card_mute";
     public static final String FREQUENCY = "anki_frequency";
     public static final String SOFT_START = "anki_soft_start";
-    public static final String DRAW_KANJI = "anki_draw_kanji";
+    public static final String KANJI_MODE = "anki_kanji_mode";
+    public static final String KANJI_ASKED = "anki_kanji_asked";
     public static final String DRAW_TIME = "anki_draw_time";
 
     public static final String TRIGGER_COMBAT = "anki_trigger_combat";
@@ -124,11 +125,30 @@ public final class AnkiPrefs {
 
     /** Answer writing cards that carry stroke data by drawing the kanji. */
     public static boolean drawKanji() {
-        return GameSettings.getBoolean(DRAW_KANJI, true);
+        return kanjiMode() != KanjiSetup.Mode.OFF;
     }
 
-    public static void drawKanji(boolean value) {
-        GameSettings.put(DRAW_KANJI, value);
+    public static KanjiSetup.Mode kanjiMode() {
+        String name = GameSettings.getString(KANJI_MODE, KanjiSetup.Mode.OFF.name());
+        for (KanjiSetup.Mode m : KanjiSetup.Mode.values()) {
+            if (m.name().equals(name)) {
+                return m;
+            }
+        }
+        return KanjiSetup.Mode.OFF;
+    }
+
+    public static void kanjiMode(KanjiSetup.Mode value) {
+        GameSettings.put(KANJI_MODE, value.name());
+    }
+
+    /** Whether the player was asked which kanji practice they want. */
+    public static boolean kanjiAsked() {
+        return GameSettings.getBoolean(KANJI_ASKED, false);
+    }
+
+    public static void kanjiAsked(boolean value) {
+        GameSettings.put(KANJI_ASKED, value);
     }
 
     public static int drawTimeSeconds() {

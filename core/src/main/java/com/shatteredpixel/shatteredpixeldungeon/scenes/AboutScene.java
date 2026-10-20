@@ -69,7 +69,8 @@ public class AboutScene extends PixelScene {
 		CreditsBlock cram = new CreditsBlock(true, CRAM_COLOR,
 				"Cram Dungeon",
 				new Image("anki/about_icon.png"),
-				"Developed by: _Svyyyaaat_\nShattered Pixel Dungeon, with flashcards from your AnkiDroid decks",
+				"Developed by: _Svyyyaaat_\nShattered Pixel Dungeon, with flashcards from your AnkiDroid decks\n\n"
+						+ "Kanji writing deck: KANJIDIC2 and JMdict (EDRDG, CC BY-SA), KanjiVG (Ulrich Apel, CC BY-SA 3.0)",
 				"github.com/Svyyyaaat",
 				"https://github.com/Svyyyaaat/Anki-Dungeon-Remixed");
 		cram.setRect((w - colWidth)/2f, insets.top + 6, colWidth, 0);

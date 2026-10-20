@@ -74,8 +74,24 @@ the question shows above a drawing pad with ↶ / ↷ for single strokes, and
 *Check* compares the drawing stroke by stroke with the reference (order,
 direction and shape, wherever and however big it is drawn on the pad). A wrong
 verdict can be overruled with *Disagree*. Drawing cards have their own timer
-(*Time to draw*, 45 s by default) and the whole feature can be turned off with
-*Draw kanji*. The cards stay ordinary Anki cards, scheduled and synced by Anki.
+(*Time to draw*, 45 s by default). The cards stay ordinary Anki cards, scheduled and synced by Anki.
+
+**Kanji decks.** *Settings > Flashcards > Kanji* (also asked once after the first
+deck is chosen) sets up one of two writing decks:
+
+- *Learning kanji*: the free [All in One Kanji Deck (Heisig's RTK Order, 6th
+  edition)](https://ankiweb.net/shared/info/1862058740) from AnkiWeb, keyword and
+  story to kanji. The game links to it if it isn't in AnkiDroid yet, and once it
+  is, suspends its recognition cards in one tap so only writing cards come up.
+  (AnkiWeb's shared-deck licence doesn't allow passing the deck on, so the game
+  doesn't ship it.)
+- *Reading, not writing*: the game's own deck, *Cram Dungeon Kanji – Writing*,
+  added to AnkiDroid in one tap: the 2,136 Jouyou kanji in school-grade order,
+  each prompted by an everyday word with the kanji blanked out (□来 → 未). Built
+  by `tools/kanji/build_writing_deck.py` from KANJIDIC2 and JMdict (EDRDG, CC
+  BY-SA) and KanjiVG (Ulrich Apel, CC BY-SA 3.0).
+
+Both are normal Anki decks, scheduled and synced by Anki. *Off* turns drawing off.
 
 **Momentum.** Good answers in a row bank free checks, played at the score of
 the answer that banked them. Every trigger above builds and spends the same

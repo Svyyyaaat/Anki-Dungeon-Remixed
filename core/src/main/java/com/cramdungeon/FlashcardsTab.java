@@ -32,6 +32,8 @@ public class FlashcardsTab extends Component {
     private CheckBox chkTts;
     private RedButton btnMedia;
     private RedButton btnFrequency;
+    private RedButton btnKanji;
+    private String shownKanjiLabel;
     private ColorBlock sep2;
     // set up in createChildren(): Component's constructor calls it before field
     // initializers run, so an initializer here would still be null at that point
@@ -132,6 +134,15 @@ public class FlashcardsTab extends Component {
         };
         add(btnFrequency);
 
+        shownKanjiLabel = kanjiLabel();
+        btnKanji = new RedButton(shownKanjiLabel) {
+            @Override
+            protected void onClick() {
+                KanjiSetup.showChooser();
+            }
+        };
+        add(btnKanji);
+
         sep2 = new ColorBlock(1, 1, 0xFF000000);
         add(sep2);
 
@@ -141,17 +152,7 @@ public class FlashcardsTab extends Component {
         addTrigger(Txt.get("tab.sneak"), AnkiPrefs.TRIGGER_SNEAK);
         addTrigger(Txt.get("tab.search"), AnkiPrefs.TRIGGER_SEARCH);
 
-        // not triggers, but they share the grid
-        CheckBox draw = new CheckBox(Txt.get("tab.draw")) {
-            @Override
-            protected void onClick() {
-                super.onClick();
-                AnkiPrefs.drawKanji(checked());
-            }
-        };
-        draw.checked(AnkiPrefs.drawKanji());
-        triggers.add(draw);
-        add(draw);
+        // not a trigger, but it shares the grid
 
         CheckBox soft = new CheckBox(Txt.get("tab.soft_start")) {
             @Override
@@ -213,8 +214,10 @@ public class FlashcardsTab extends Component {
             btnMedia.setRect(0, btnFrequency.bottom() + GAP, width, BTN_HEIGHT);
         }
 
+        btnKanji.setRect(0, btnMedia.bottom() + GAP, width, BTN_HEIGHT);
+
         sep2.size(width, 1);
-        sep2.y = btnMedia.bottom() + GAP;
+        sep2.y = btnKanji.bottom() + GAP;
 
         float colWidth = wide ? width / 2f - 1 : width;
         float top = sep2.y + 1 + GAP;
@@ -238,9 +241,18 @@ public class FlashcardsTab extends Component {
             shownDeckLabel = label;
             btnDeck.text(label);
         }
+        String kanji = kanjiLabel();
+        if (!kanji.equals(shownKanjiLabel)) {
+            shownKanjiLabel = kanji;
+            btnKanji.text(kanji);
+        }
         if (chkEnabled.checked() != AnkiPrefs.enabled()) {
             chkEnabled.checked(AnkiPrefs.enabled());
         }
+    }
+
+    private static String kanjiLabel() {
+        return Txt.get("tab.kanji", AnkiPrefs.kanjiMode().label());
     }
 
     private static String frequencyLabel() {

@@ -349,7 +349,9 @@ button.snd:active {
         <div id="new-card" data-t="new_card">New card &mdash; no penalty if you miss it</div>
         <div id="content">
             <div id="question" class="card">%%QUESTION%%</div>
-            <div id="answer" class="card">%%ANSWER%%</div>
+            <div id="answer" class="card"></div>
+            <!-- like Anki, only one side is in the page at a time: card scripts look up their own ids -->
+            <template id="answer-tpl">%%ANSWER%%</template>
         </div>
         <div id="draw">
             <div id="pad">
@@ -497,6 +499,76 @@ function soundsIn(id) {
     return Array.prototype.map.call(el(id).querySelectorAll("button.snd"), clip);
 }
 
+/* ---- the two sides: only the one showing is in the page, so card scripts find their own elements ---- */
+
+var questionNodes = null;   // the question side while the answer shows
+var answerNodes = null;     // the answer side, kept after its first showing
+var questionSounds = [];
+
+/* sound buttons and missing images inside a freshly shown side */
+function wire(root) {
+    Array.prototype.forEach.call(root.querySelectorAll("img"), function (img) {
+        img.addEventListener("error", function () {
+            var span = document.createElement("span");
+            span.className = "missing-media";
+            span.textContent = T("image_missing", "[image missing]");
+            img.replaceWith(span);
+        });
+    });
+    Array.prototype.forEach.call(root.querySelectorAll("button.snd"), function (b) {
+        b.addEventListener("click", function (e) {
+            e.stopPropagation();
+            play([clip(b)]);
+        });
+    });
+}
+
+function detach(box) {
+    var frag = document.createDocumentFragment();
+    while (box.firstChild) {
+        frag.appendChild(box.firstChild);
+    }
+    return frag;
+}
+
+/* scripts parsed inside a <template> are inert: recreate them so they run, in order */
+function runScripts(root) {
+    Array.prototype.forEach.call(root.querySelectorAll("script"), function (old) {
+        var s = document.createElement("script");
+        Array.prototype.forEach.call(old.attributes, function (a) { s.setAttribute(a.name, a.value); });
+        s.text = old.text;
+        old.replaceWith(s);
+    });
+}
+
+function swapToAnswer() {
+    var q = el("question"), a = el("answer");
+    if (!questionNodes) {
+        questionNodes = detach(q);
+    }
+    if (answerNodes) {
+        a.appendChild(answerNodes);
+        answerNodes = null;
+    } else if (!a.firstChild) {
+        a.appendChild(el("answer-tpl").content.cloneNode(true));
+        wire(a);
+        runScripts(a);
+    }
+    q.style.display = "none";
+    a.style.display = "block";
+}
+
+function swapToQuestion() {
+    var q = el("question"), a = el("answer");
+    answerNodes = detach(a);
+    if (questionNodes) {
+        q.appendChild(questionNodes);
+        questionNodes = null;
+    }
+    a.style.display = "none";
+    q.style.display = "block";
+}
+
 function play(clips) {
     if (clips.length) {
         AnkiBridge.play(JSON.stringify(clips));
@@ -505,7 +577,7 @@ function play(clips) {
 
 /* the answer usually repeats the question ({{FrontSide}}); autoplay only what's new */
 function answerOnlySounds() {
-    var asked = soundsIn("question").map(function (c) { return JSON.stringify(c); });
+    var asked = questionSounds.map(function (c) { return JSON.stringify(c); });
     return soundsIn("answer").filter(function (c) { return asked.indexOf(JSON.stringify(c)) < 0; });
 }
 
@@ -517,8 +589,7 @@ function grade(ease) {
 function showAnswerSide() {
     revealed = true;
     freezeClock();
-    el("question").style.display = "none";
-    el("answer").style.display = "block";
+    swapToAnswer();
     el("content").scrollTop = 0;
     updateTools();
     lock();
@@ -538,8 +609,7 @@ function reveal() {
 function showQuestion(elapsedMs) {
     revealed = false;
     AnkiBridge.stopAudio();
-    el("answer").style.display = "none";
-    el("question").style.display = "block";
+    swapToQuestion();
     el("content").scrollTop = 0;
     note("");
     if (DRAW) {
@@ -837,8 +907,7 @@ function check() {
     freezeClock();
     showReference();
     renderInk();
-    el("answer").style.display = "block";
-    el("question").style.display = "none";
+    swapToAnswer();
     el("content").scrollTop = 0;
     updateTools();
     lock();
@@ -872,15 +941,8 @@ function drawQuestionButtons() {
         node.textContent = T(node.getAttribute("data-t"), node.textContent);
     });
 
-    // AnkiDroid's media folder isn't reachable from here
-    Array.prototype.forEach.call(document.querySelectorAll("img"), function (img) {
-        img.addEventListener("error", function () {
-            var span = document.createElement("span");
-            span.className = "missing-media";
-            span.textContent = T("image_missing", "[image missing]");
-            img.replaceWith(span);
-        });
-    });
+    wire(el("question"));
+    questionSounds = soundsIn("question");
 
     if (CONFIG.newCard) {
         el("new-card").style.display = "block";
@@ -897,13 +959,6 @@ function drawQuestionButtons() {
             "Some pictures or sounds are missing. Add them in Settings > Flashcards > Pictures & sounds.");
         mn.style.display = "block";
     }
-
-    Array.prototype.forEach.call(document.querySelectorAll("button.snd"), function (b) {
-        b.addEventListener("click", function (e) {
-            e.stopPropagation();
-            play([clip(b)]);
-        });
-    });
 
     el("btn-back").addEventListener("click", function () {
         if (isLocked() || this.disabled) {
@@ -937,7 +992,7 @@ function drawQuestionButtons() {
     questionButtons();
     updateTools();
     lock();
-    play(soundsIn("question"));
+    play(questionSounds);
 })();
 </script>
 </body>

@@ -17,6 +17,7 @@ import com.cramdungeon.AnkiDeck;
 import com.cramdungeon.AnkiPlatform;
 import com.cramdungeon.AnkiPrefs;
 import com.cramdungeon.CardTts;
+import com.cramdungeon.KanjiSetup;
 import com.cramdungeon.KanjiStrokes;
 import com.cramdungeon.CardMedia;
 import com.cramdungeon.CardOutcome;
@@ -445,6 +446,76 @@ public class AnkiDroidBridge implements AnkiPlatform {
         io.execute(() -> {
             media.clear();
             post(onDone);
+        });
+    }
+
+    // kanji decks: adding or suspending thousands of cards must not hold up card checks
+    private final ExecutorService slow = Executors.newSingleThreadExecutor();
+    private KanjiDecks kanjiDecks;
+
+    private KanjiDecks kanjiDecks() {
+        if (kanjiDecks == null) {
+            kanjiDecks = new KanjiDecks(activity);
+        }
+        return kanjiDecks;
+    }
+
+    @Override
+    public void findKanjiDeck(KanjiSetup.Mode mode, Consumer<AnkiDeck> onDone) {
+        slow.execute(() -> {
+            AnkiDeck deck = null;
+            try {
+                deck = mode == KanjiSetup.Mode.HEISIG ? kanjiDecks().findHeisig() : kanjiDecks().findWriting();
+            } catch (Exception e) {
+                Log.e(TAG, "looking for the kanji deck failed", e);
+            }
+            final AnkiDeck found = deck;
+            post(() -> onDone.accept(found));
+        });
+    }
+
+    @Override
+    public void suspendKanjiRecognition(Consumer<Integer> progress, Consumer<Integer> onDone) {
+        slow.execute(() -> {
+            int done = 0;
+            try {
+                done = kanjiDecks().suspendHeisigRecognition(n -> post(() -> progress.accept(n)));
+            } catch (Exception e) {
+                Log.e(TAG, "suspending recognition cards failed", e);
+            }
+            final int total = done;
+            io.execute(() -> {
+                queue.clear();
+                answered.clear();
+            });
+            post(() -> onDone.accept(total));
+        });
+    }
+
+    @Override
+    public void addKanjiWritingDeck(Consumer<Integer> progress, Consumer<AnkiDeck> onDone) {
+        slow.execute(() -> {
+            AnkiDeck deck = null;
+            try {
+                deck = kanjiDecks().addWriting(n -> post(() -> progress.accept(n)));
+            } catch (Exception e) {
+                Log.e(TAG, "adding the kanji writing deck failed", e);
+            }
+            final AnkiDeck added = deck;
+            post(() -> onDone.accept(added));
+        });
+    }
+
+    @Override
+    public void openUrl(String url) {
+        onUiThread(() -> {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(intent);
+            } catch (ActivityNotFoundException e) {
+                Log.w(TAG, "no browser for " + url, e);
+            }
         });
     }
 

@@ -1,0 +1,23 @@
+<div class="cdk-q">
+  <div class="cdk-word" id="cdk-word"></div>
+  <div class="cdk-reading" id="cdk-reading"></div>
+  <div class="cdk-gloss" id="cdk-gloss"></div>
+  <div class="cdk-meaning">{{Meaning}}</div>
+</div>
+<script type="application/json" id="cdk-words">{{Words}}</script>
+<script>
+(function () {
+  // One of the example words, the kanji to write blanked out. The same word
+  // all day, so the answer side shows the word that was asked.
+  var kanji = "{{Kanji}}";
+  var words = [];
+  try { words = JSON.parse(document.getElementById("cdk-words").textContent); } catch (e) {}
+  if (!words.length) { words = [[kanji, "", ""]]; }
+  var w = words[Math.floor(Date.now() / 86400000) % words.length];
+  var el = function (id) { return document.getElementById(id); };
+  el("cdk-word").textContent = w[0].split(kanji).join("□");
+  el("cdk-word").setAttribute("data-word", w[0]);
+  el("cdk-reading").textContent = w[1];
+  el("cdk-gloss").textContent = w[2];
+})();
+</script>
