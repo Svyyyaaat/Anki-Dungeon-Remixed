@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="cram_media_title">Obrázky a zvuky</string>
-    <string name="cram_media_pick">Vyber balíček, který jsi vyexportoval z AnkiDroid.</string>
+    <string name="cram_media_pick">Vyber balíček vyexportovaný z AnkiDroid.</string>
     <string name="cram_media_no_picker">Nepodařilo se otevřít výběr souborů. Místo toho sdílej balíček do Cram Dungeon přímo z AnkiDroid.</string>
     <string name="cram_media_opening">Otevírání…</string>
     <string name="cram_media_copying">Kopírování… %1$d / %2$d</string>
