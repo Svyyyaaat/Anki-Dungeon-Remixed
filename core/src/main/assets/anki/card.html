@@ -396,6 +396,8 @@ var CONFIG = %%CONFIG%%;
 
 // how long buttons ignore taps after the card changes
 var LOCK_MS = 600;
+// after Check the tap was deliberate: just enough to catch a double tap
+var CHECK_LOCK_MS = 200;
 
 var revealed = false;
 var timedOut = false;
@@ -409,11 +411,11 @@ function T(key, english) {
     return text ? text : english;
 }
 
-function lock() {
+function lock(ms) {
     var panel = el("panel");
     panel.classList.add("locked");
     clearTimeout(lockTimer);
-    lockTimer = setTimeout(function () { panel.classList.remove("locked"); }, LOCK_MS);
+    lockTimer = setTimeout(function () { panel.classList.remove("locked"); }, ms || LOCK_MS);
 }
 
 function isLocked() {
@@ -437,7 +439,12 @@ function button(label, sub, onClick) {
     return b;
 }
 
+var shownButtons = [];   // the last real set of buttons, to bring back after a busy spell
+
 function setButtons(list) {
+    if (list.length) {
+        shownButtons = list;
+    }
     var box = el("buttons");
     box.innerHTML = "";
     list.forEach(function (b) { box.appendChild(b); });
@@ -663,11 +670,7 @@ function timeUp() {
 /* called by the game when a bury/suspend had no other card to switch to */
 function noOtherCards() {
     note(T("no_other", "No other cards are due right now."));
-    if (revealed) {
-        gradeButtons();
-    } else {
-        questionButtons();
-    }
+    setButtons(shownButtons);
     updateTools();
 }
 
@@ -951,7 +954,7 @@ function check() {
     swapToAnswer();
     el("content").scrollTop = 0;
     updateTools();
-    lock();
+    lock(CHECK_LOCK_MS);
     play(answerOnlySounds());
     if (verdict.correct) {
         showResult(T("draw_correct", "Correct!"), true);
@@ -966,7 +969,7 @@ function check() {
                 renderInk();
                 showResult(T("draw_accepted", "Counted as correct"), true);
                 correctButtons();
-                lock();
+                lock(CHECK_LOCK_MS);
             })
         ]);
     }

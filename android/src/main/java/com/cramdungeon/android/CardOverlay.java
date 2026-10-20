@@ -173,6 +173,15 @@ final class CardOverlay {
         }
     }
 
+    /** The card was buried or suspended and nothing else is due: close without an answer. */
+    static void closeWithoutAnswer() {
+        if (finished) {
+            return;
+        }
+        finished = true;
+        dismiss();
+    }
+
     static boolean isShowing() {
         return root != null;
     }

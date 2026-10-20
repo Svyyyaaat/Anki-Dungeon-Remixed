@@ -274,7 +274,16 @@ public class AnkiDroidBridge implements AnkiPlatform {
                 try {
                     CardRef next = nextCard(deckId, shownKeys());
                     if (next == null) {
-                        onUiThread(CardOverlay::noOtherCards);
+                        // nothing else to show: bury/suspend this card anyway and let the check pass
+                        final CardRef last = current;
+                        final ArrayDeque<Skipped> toApply = new ArrayDeque<>(skipped);
+                        for (Skipped s : toApply) {
+                            buryOrSuspend(s.card, s.action);
+                        }
+                        buryOrSuspend(last, action);
+                        lastCardKey = last.key();
+                        onUiThread(CardOverlay::closeWithoutAnswer);
+                        post(() -> onDone.accept(CardOutcome.skipped()));
                         return;
                     }
                     skipped.push(new Skipped(current, action, elapsedMs));

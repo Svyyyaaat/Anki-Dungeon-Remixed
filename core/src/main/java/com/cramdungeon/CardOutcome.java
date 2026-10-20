@@ -9,6 +9,8 @@ public class CardOutcome {
     public enum Kind {
         ANSWERED,
         NO_CARDS,
+        // buried or suspended with nothing else due: the check plays without a card
+        SKIPPED,
         ERROR
     }
 
@@ -44,6 +46,10 @@ public class CardOutcome {
 
     public static CardOutcome noCards() {
         return new CardOutcome(Kind.NO_CARDS, 0, 0, false, false, 0);
+    }
+
+    public static CardOutcome skipped() {
+        return new CardOutcome(Kind.SKIPPED, 0, 0, false, false, 0);
     }
 
     public static CardOutcome error() {
