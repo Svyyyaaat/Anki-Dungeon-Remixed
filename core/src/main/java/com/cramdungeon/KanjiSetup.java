@@ -1,6 +1,6 @@
 package com.cramdungeon;
 
-import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 
 import java.util.Locale;
@@ -98,12 +98,18 @@ public final class KanjiSetup {
             @Override
             protected void onSelect(int index) {
                 if (index == 0) {
-                    GLog.i(Txt.get("kanji.suspending"));
+                    WndKanjiProgress progress = new WndKanjiProgress(deck.name, Txt.get("kanji.suspending"));
+                    AnkiCheck.show(() -> progress);
                     platform.suspendKanjiRecognition(
-                            done -> GLog.i(Txt.get("kanji.progress", done)),
+                            done -> progress.text(Txt.get("kanji.suspending") + "\n" + done),
                             total -> {
-                                GLog.p(Txt.get("kanji.suspended", total));
+                                progress.hide();
                                 offerStudy(deck);
+                                done(Txt.get("kanji.suspended", total) + "\n\n" + afterMainText(deck));
+                            },
+                            error -> {
+                                progress.hide();
+                                done(Txt.get("kanji.add_failed") + "\n\n" + error);
                             });
                 } else {
                     offerStudy(deck);
@@ -120,19 +126,30 @@ public final class KanjiSetup {
                 if (index != 0) {
                     return;
                 }
-                GLog.i(Txt.get("kanji.adding"));
+                WndKanjiProgress progress = new WndKanjiProgress(Txt.get("kanji.words_add_title"),
+                        Txt.get("kanji.adding"));
+                AnkiCheck.show(() -> progress);
                 platform.addKanjiWritingDeck(
-                        done -> GLog.i(Txt.get("kanji.progress", done)),
+                        done -> progress.text(Txt.get("kanji.adding") + "\n" + done + " / 2136"),
                         deck -> {
-                            if (deck == null) {
-                                GLog.w(Txt.get("kanji.add_failed"));
-                            } else {
-                                GLog.p(Txt.get("kanji.added", deck.name));
-                                offerStudy(deck);
-                            }
+                            progress.hide();
+                            offerStudy(deck);
+                            done(Txt.get("kanji.added", deck.name) + "\n\n" + afterMainText(deck));
+                        },
+                        error -> {
+                            progress.hide();
+                            done(Txt.get("kanji.add_failed") + "\n\n" + error);
                         });
             }
         });
+    }
+
+    private static void done(String message) {
+        AnkiCheck.show(() -> new WndMessage(message));
+    }
+
+    private static String afterMainText(AnkiDeck deck) {
+        return AnkiPrefs.deckId() == deck.id ? "" : Txt.get("kanji.after_main", deck.name);
     }
 
     /** The kanji deck is studied once the main deck is done for the day (or is the main deck if there is none). */
@@ -141,8 +158,6 @@ public final class KanjiSetup {
         AnkiCheck.kanjiDeckReady();
         if (!AnkiPrefs.hasDeck()) {
             AnkiCheck.selectDeck(deck);
-        } else if (deck.id != AnkiPrefs.deckId()) {
-            GLog.p(Txt.get("kanji.after_main", deck.name));
         }
     }
 }

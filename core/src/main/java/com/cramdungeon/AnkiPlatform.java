@@ -44,11 +44,11 @@ public interface AnkiPlatform {
     /** The kanji deck of that kind already in AnkiDroid, or null. */
     void findKanjiDeck(KanjiSetup.Mode mode, Consumer<AnkiDeck> onDone);
 
-    /** Suspends the recognition cards of the All in One Kanji deck; reports how many. */
-    void suspendKanjiRecognition(Consumer<Integer> progress, Consumer<Integer> onDone);
+    /** Suspends the recognition cards of the All in One Kanji deck; reports how many, or the error. */
+    void suspendKanjiRecognition(Consumer<Integer> progress, Consumer<Integer> onDone, Consumer<String> onError);
 
-    /** Adds the game's own kanji writing deck to AnkiDroid; reports the deck, or null if it failed. */
-    void addKanjiWritingDeck(Consumer<Integer> progress, Consumer<AnkiDeck> onDone);
+    /** Adds the game's own kanji writing deck to AnkiDroid; reports the deck, or the error. */
+    void addKanjiWritingDeck(Consumer<Integer> progress, Consumer<AnkiDeck> onDone, Consumer<String> onError);
 
     /** Opens a web page, e.g. a shared deck on AnkiWeb. */
     void openUrl(String url);

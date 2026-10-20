@@ -475,34 +475,39 @@ public class AnkiDroidBridge implements AnkiPlatform {
     }
 
     @Override
-    public void suspendKanjiRecognition(Consumer<Integer> progress, Consumer<Integer> onDone) {
+    public void suspendKanjiRecognition(Consumer<Integer> progress, Consumer<Integer> onDone,
+                                        Consumer<String> onError) {
         slow.execute(() -> {
-            int done = 0;
             try {
-                done = kanjiDecks().suspendHeisigRecognition(n -> post(() -> progress.accept(n)));
-            } catch (Exception e) {
+                int total = kanjiDecks().suspendHeisigRecognition(n -> post(() -> progress.accept(n)));
+                io.execute(() -> {
+                    queue.clear();
+                    answered.clear();
+                });
+                post(() -> onDone.accept(total));
+            } catch (Throwable e) {
                 Log.e(TAG, "suspending recognition cards failed", e);
+                post(() -> onError.accept(describe(e)));
             }
-            final int total = done;
-            io.execute(() -> {
-                queue.clear();
-                answered.clear();
-            });
-            post(() -> onDone.accept(total));
         });
     }
 
+    private static String describe(Throwable e) {
+        String msg = e.getMessage();
+        return e.getClass().getSimpleName() + (msg != null ? ": " + msg : "");
+    }
+
     @Override
-    public void addKanjiWritingDeck(Consumer<Integer> progress, Consumer<AnkiDeck> onDone) {
+    public void addKanjiWritingDeck(Consumer<Integer> progress, Consumer<AnkiDeck> onDone,
+                                    Consumer<String> onError) {
         slow.execute(() -> {
-            AnkiDeck deck = null;
             try {
-                deck = kanjiDecks().addWriting(n -> post(() -> progress.accept(n)));
-            } catch (Exception e) {
+                AnkiDeck deck = kanjiDecks().addWriting(n -> post(() -> progress.accept(n)));
+                post(() -> onDone.accept(deck));
+            } catch (Throwable e) {
                 Log.e(TAG, "adding the kanji writing deck failed", e);
+                post(() -> onError.accept(describe(e)));
             }
-            final AnkiDeck added = deck;
-            post(() -> onDone.accept(added));
         });
     }
 
