@@ -1,19 +1,24 @@
 package com.cramdungeon;
 
 public enum CheckKind {
-    ATTACK("Strike!", AnkiPrefs.TRIGGER_COMBAT),
-    DEFENSE("Defend!", AnkiPrefs.TRIGGER_COMBAT),
-    POTION("An unknown potion", AnkiPrefs.TRIGGER_ITEMS),
-    SCROLL("An unknown scroll", AnkiPrefs.TRIGGER_ITEMS),
-    PICKUP("You look it over", AnkiPrefs.TRIGGER_PICKUP),
-    SNEAK("Sneaking past", AnkiPrefs.TRIGGER_SNEAK),
-    SEARCH("Searching", AnkiPrefs.TRIGGER_SEARCH);
+    ATTACK("attack", AnkiPrefs.TRIGGER_COMBAT),
+    DEFENSE("defense", AnkiPrefs.TRIGGER_COMBAT),
+    POTION("potion", AnkiPrefs.TRIGGER_ITEMS),
+    SCROLL("scroll", AnkiPrefs.TRIGGER_ITEMS),
+    PICKUP("pickup", AnkiPrefs.TRIGGER_PICKUP),
+    SNEAK("sneak", AnkiPrefs.TRIGGER_SNEAK),
+    SEARCH("search", AnkiPrefs.TRIGGER_SEARCH);
 
-    public final String title;
+    private final String textKey;
     public final String triggerKey;
 
-    CheckKind(String title, String triggerKey) {
-        this.title = title;
+    CheckKind(String textKey, String triggerKey) {
+        this.textKey = textKey;
         this.triggerKey = triggerKey;
+    }
+
+    /** Heading of the card window. */
+    public String title() {
+        return Txt.get("check." + textKey);
     }
 }

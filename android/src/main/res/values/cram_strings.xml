@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The pictures & sounds import screen. It can open without the game running, so it uses Android's own translations. -->
+<resources>
+    <string name="cram_media_title">Pictures &amp; sounds</string>
+    <string name="cram_media_pick">Pick the deck you exported from AnkiDroid.</string>
+    <string name="cram_media_no_picker">Couldn\'t open the file picker. Share your deck to Cram Dungeon from AnkiDroid instead.</string>
+    <string name="cram_media_opening">Opening…</string>
+    <string name="cram_media_copying">Copying… %1$d / %2$d</string>
+    <string name="cram_media_failed">Couldn\'t read this file. In AnkiDroid, export your deck with “Include media” ticked and share it here.</string>
+    <string name="cram_media_no_media">This file has no pictures or sounds. In AnkiDroid, export again with “Include media” ticked.</string>
+    <string name="cram_media_all_here">You already have all of these.</string>
+    <string name="cram_media_added">New files: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Updated: %1$d.</string>
+    <string name="cram_media_unchanged">Already here: %1$d.</string>
+    <string name="cram_media_skipped">Couldn\'t be used: %1$d.</string>
+    <string name="cram_media_done">They show up on your cards right away.</string>
+    <string name="cram_media_ok">OK</string>
+</resources>

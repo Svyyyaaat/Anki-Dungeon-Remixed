@@ -44,7 +44,7 @@ public final class AnkiStealth {
             tension.put(mob, result.correct ? -1f : 0f);
         }
         hero.sprite.showStatus(result.correct ? CharSprite.POSITIVE : CharSprite.NEGATIVE,
-                result.correct ? "Unnoticed" : "Spotted!");
+                Txt.get(result.correct ? "status.unnoticed" : "status.spotted"));
         return !result.correct;
     }
 }

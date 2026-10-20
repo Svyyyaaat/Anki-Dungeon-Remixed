@@ -86,6 +86,12 @@ game offers to switch decks, learn 10 new cards, carry on without cards (only
 until you leave that game; cards are back the next time you start or load one),
 or save and quit.
 Every trigger can be turned off on its own in settings.
+With *Soft start* on (off by default), the first 10 checks after loading a save
+play without cards, to get back into the run first.
+
+All of Cram Dungeon's own text is translated into every language the game
+offers (`core/src/main/assets/messages/cram/`); the pictures & sounds import
+screen follows the phone's language (`android/src/main/res/values-*/cram_strings.xml`).
 
 ## Kitsune (secret)
 

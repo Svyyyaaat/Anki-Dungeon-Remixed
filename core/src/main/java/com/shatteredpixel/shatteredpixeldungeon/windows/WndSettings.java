@@ -955,7 +955,7 @@ public class WndSettings extends WndTabbed {
 			sepCard = new ColorBlock(1, 1, 0xFF000000);
 			add(sepCard);
 
-			optCard = new OptionSlider("Flashcard audio volume", "0", "10", 0, 10) {
+			optCard = new OptionSlider(com.cramdungeon.Txt.get("audio.volume"), "0", "10", 0, 10) {
 				@Override
 				protected void onChange() {
 					AnkiPrefs.cardVolume(getSelectedValue());
@@ -964,7 +964,7 @@ public class WndSettings extends WndTabbed {
 			optCard.setSelectedValue(AnkiPrefs.cardVolume());
 			add(optCard);
 
-			chkCardMute = new CheckBox("Mute flashcard audio"){
+			chkCardMute = new CheckBox(com.cramdungeon.Txt.get("audio.mute")){
 				@Override
 				protected void onClick() {
 					super.onClick();

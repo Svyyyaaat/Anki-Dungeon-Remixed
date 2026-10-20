@@ -14,24 +14,26 @@ public final class AnkiMomentum {
 
     public enum Frequency {
         // banks after 2 good answers in a row, 3 checks (+1 per chapter)
-        OFTEN("Often", 2, 3, 7, 0.6f),
+        OFTEN(2, 3, 7, 0.6f),
         // banks after any good answer, 5 checks (+1 per chapter)
-        NORMAL("Normal", 1, 5, 9, 0.5f),
+        NORMAL(1, 5, 9, 0.5f),
         // banks after any passed card, Hard too, 8 checks (+1 per chapter)
-        REDUCED("Reduced", 1, 8, 12, 0.4f);
+        REDUCED(1, 8, 12, 0.4f);
 
-        public final String label;
         final int minStreak;
         final int baseCharges;
         final int maxCharges;
         final float threshold;
 
-        Frequency(String label, int minStreak, int baseCharges, int maxCharges, float threshold) {
-            this.label = label;
+        Frequency(int minStreak, int baseCharges, int maxCharges, float threshold) {
             this.minStreak = minStreak;
             this.baseCharges = baseCharges;
             this.maxCharges = maxCharges;
             this.threshold = threshold;
+        }
+
+        public String label() {
+            return Txt.get("freq." + name().toLowerCase(java.util.Locale.ENGLISH));
         }
     }
 
@@ -67,7 +69,7 @@ public final class AnkiMomentum {
             performance = chargePerformance;
         }
         if (Dungeon.hero != null && Dungeon.hero.sprite != null) {
-            Dungeon.hero.sprite.showStatus(CharSprite.POSITIVE, "Momentum!");
+            Dungeon.hero.sprite.showStatus(CharSprite.POSITIVE, Txt.get("status.momentum"));
         }
         return CheckResult.momentum(performance);
     }

@@ -2,6 +2,7 @@ package com.shatteredpixel.shatteredpixeldungeon.items.scrolls;
 
 import com.cramdungeon.AnkiCheck;
 import com.cramdungeon.CheckKind;
+import com.cramdungeon.Txt;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.exotic.ScrollOfChallenge;
@@ -73,16 +74,16 @@ public final class AnkiScrolls {
                 } else {
                     scroll.detach(hero.belongings.backpack);
                     scroll.identify();
-                    GLog.n("The %s slipped from your hands and the draft carried it away!", scroll.name());
+                    GLog.n(Txt.get("scroll.lost", scroll.name()));
                     scroll.readAnimation();
                 }
                 return;
             }
 
             if (result.correct) {
-                GLog.p("The runes fall into place.");
+                GLog.p(Txt.get("scroll.ok"));
             } else {
-                GLog.n("You stumble over the runes!");
+                GLog.n(Txt.get("scroll.bad"));
             }
 
             boolean wantHarmful = !result.correct;

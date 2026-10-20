@@ -200,7 +200,8 @@ public class TitleScene extends PixelScene {
 				ShatteredPixelDungeon.switchScene( AboutScene.class );
 			}
 		};
-		btnAbout.icon(Icons.get(Icons.SHPX));
+		//Cram Dungeon: the flashcard from the About screen, at button size
+		btnAbout.icon(new Image("anki/about_btn.png"));
 		add(btnAbout);
 		
 		final int BTN_HEIGHT = 20;

@@ -260,11 +260,11 @@ button.snd:active {
             <div id="clock"><div id="clock-fill"></div></div>
         </div>
         <div id="tools">
-            <button class="btn grey" id="btn-back">Back</button>
-            <button class="btn grey" id="btn-bury">Bury</button>
-            <button class="btn grey" id="btn-suspend">Suspend</button>
+            <button class="btn grey" id="btn-back" data-t="back">Back</button>
+            <button class="btn grey" id="btn-bury" data-t="bury">Bury</button>
+            <button class="btn grey" id="btn-suspend" data-t="suspend">Suspend</button>
         </div>
-        <div id="new-card">New card &mdash; no penalty if you miss it</div>
+        <div id="new-card" data-t="new_card">New card &mdash; no penalty if you miss it</div>
         <div id="content">
             <div id="question" class="card">%%QUESTION%%</div>
             <div id="answer" class="card">%%ANSWER%%</div>
@@ -273,7 +273,7 @@ button.snd:active {
         <div id="media-note"></div>
         <div id="foot">
             <div id="buttons"></div>
-            <div id="honesty">Thou shalt answer honestly &mdash; or else just play the normal game.</div>
+            <div id="honesty" data-t="honesty">Thou shalt answer honestly &mdash; or else just play the normal game.</div>
         </div>
     </div>
 </div>
@@ -288,6 +288,12 @@ var timedOut = false;
 var lockTimer = null;
 
 function el(id) { return document.getElementById(id); }
+
+// the game's translation of a card-screen string, English as the fallback
+function T(key, english) {
+    var text = CONFIG.text && CONFIG.text[key];
+    return text ? text : english;
+}
 
 function lock() {
     var panel = el("panel");
@@ -362,21 +368,21 @@ function freezeClock() {
 function gradeButtons() {
     if (CONFIG.simple) {
         setButtons([
-            button("Again", "I missed it", function () { grade(1); }),
-            button("Good", "I knew it", function () { grade(3); })
+            button(T("again", "Again"), T("again_sub", "I missed it"), function () { grade(1); }),
+            button(T("good", "Good"), T("good_sub", "I knew it"), function () { grade(3); })
         ]);
     } else {
         setButtons([
-            button("Again", null, function () { grade(1); }),
-            button("Hard", null, function () { grade(2); }),
-            button("Good", null, function () { grade(3); }),
-            button("Easy", null, function () { grade(4); })
+            button(T("again", "Again"), null, function () { grade(1); }),
+            button(T("hard", "Hard"), null, function () { grade(2); }),
+            button(T("good", "Good"), null, function () { grade(3); }),
+            button(T("easy", "Easy"), null, function () { grade(4); })
         ]);
     }
 }
 
 function questionButtons() {
-    setButtons([button("Show answer", null, reveal)]);
+    setButtons([button(T("show_answer", "Show answer"), null, reveal)]);
 }
 
 /* card audio inside an element, in order: {f: file} for [sound:], {t, l, r} for TTS */
@@ -451,14 +457,14 @@ function timeUp() {
     showAnswerSide();
     var title = el("title");
     title.className = "bad";
-    title.textContent = "Time's up!";
+    title.textContent = T("times_up", "Time's up!");
     play(answerOnlySounds());
-    setButtons([button("Continue", "counts as Again", function () { grade(1); })]);
+    setButtons([button(T("continue", "Continue"), T("continue_sub", "counts as Again"), function () { grade(1); })]);
 }
 
 /* called by the game when a bury/suspend had no other card to switch to */
 function noOtherCards() {
-    note("No other cards are due right now.");
+    note(T("no_other", "No other cards are due right now."));
     if (revealed) {
         gradeButtons();
     } else {
@@ -474,13 +480,16 @@ function busy() {
 
 (function init() {
     el("title").textContent = CONFIG.title;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-t]"), function (node) {
+        node.textContent = T(node.getAttribute("data-t"), node.textContent);
+    });
 
     // AnkiDroid's media folder isn't reachable from here
     Array.prototype.forEach.call(document.querySelectorAll("img"), function (img) {
         img.addEventListener("error", function () {
             var span = document.createElement("span");
             span.className = "missing-media";
-            span.textContent = "[image missing]";
+            span.textContent = T("image_missing", "[image missing]");
             img.replaceWith(span);
         });
     });
@@ -491,7 +500,8 @@ function busy() {
 
     if (CONFIG.missingMedia > 0) {
         var mn = el("media-note");
-        mn.textContent = "Some pictures or sounds are missing. Add them in Settings > Flashcards > Pictures & sounds.";
+        mn.textContent = T("media_missing",
+            "Some pictures or sounds are missing. Add them in Settings > Flashcards > Pictures & sounds.");
         mn.style.display = "block";
     }
 

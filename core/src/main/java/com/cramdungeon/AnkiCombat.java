@@ -56,9 +56,9 @@ public final class AnkiCombat {
             }
             if (!result.momentum) {
                 if (!result.correct) {
-                    hero.sprite.showStatus(CharSprite.NEGATIVE, attacking ? "Fumble!" : "Exposed!");
+                    hero.sprite.showStatus(CharSprite.NEGATIVE, Txt.get(attacking ? "status.fumble" : "status.exposed"));
                 } else if (result.fast()) {
-                    hero.sprite.showStatus(CharSprite.POSITIVE, attacking ? "Precise!" : "Ready!");
+                    hero.sprite.showStatus(CharSprite.POSITIVE, Txt.get(attacking ? "status.precise" : "status.ready"));
                 }
             }
             resolveWith(attacker, defender, result.performance, resolve);

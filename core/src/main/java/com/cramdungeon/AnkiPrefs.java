@@ -12,6 +12,7 @@ public final class AnkiPrefs {
     public static final String CARD_VOLUME = "anki_card_volume";
     public static final String CARD_MUTE = "anki_card_mute";
     public static final String FREQUENCY = "anki_frequency";
+    public static final String SOFT_START = "anki_soft_start";
 
     public static final String TRIGGER_COMBAT = "anki_trigger_combat";
     public static final String TRIGGER_ITEMS = "anki_trigger_items";
@@ -114,6 +115,15 @@ public final class AnkiPrefs {
 
     public static void frequency(AnkiMomentum.Frequency value) {
         GameSettings.put(FREQUENCY, value.name());
+    }
+
+    /** No cards for the first few checks after loading a save. */
+    public static boolean softStart() {
+        return GameSettings.getBoolean(SOFT_START, false);
+    }
+
+    public static void softStart(boolean value) {
+        GameSettings.put(SOFT_START, value);
     }
 
     public static boolean trigger(String key) {

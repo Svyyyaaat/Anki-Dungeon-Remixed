@@ -55,18 +55,18 @@ public final class AnkiPickup {
                 return;
             }
             if (!result.correct) {
-                GLog.i("You can't make sense of the %s.", item.name());
+                GLog.i(Txt.get("pickup.confused", item.name()));
                 return;
             }
             if (result.fast()) {
                 item.identify();
-                GLog.p("You see right through it: %s.", item.name());
+                GLog.p(Txt.get("pickup.seen", item.name()));
             } else {
                 item.cursedKnown = true;
                 if (item.cursed) {
-                    GLog.n("You sense a malevolent aura: the %s is cursed!", item.name());
+                    GLog.n(Txt.get("pickup.cursed", item.name()));
                 } else {
-                    GLog.p("You sense the %s is free of curses.", item.name());
+                    GLog.p(Txt.get("pickup.clean", item.name()));
                 }
             }
             Item.updateQuickslot();

@@ -20,6 +20,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.cramdungeon.CardMedia;
+import com.shatteredpixel.shatteredpixeldungeon.android.R;
 import com.github.luben.zstd.ZstdInputStream;
 
 import java.io.File;
@@ -79,9 +80,9 @@ public class MediaImportActivity extends Activity {
             pick.setType("*/*");
             try {
                 startActivityForResult(pick, PICK_FILE);
-                message.setText("Pick the deck you exported from AnkiDroid.");
+                message.setText(R.string.cram_media_pick);
             } catch (ActivityNotFoundException e) {
-                finishWith("Couldn't open the file picker. Share your deck to Cram Dungeon from AnkiDroid instead.");
+                finishWith(getString(R.string.cram_media_no_picker));
             }
         }
     }
@@ -118,7 +119,7 @@ public class MediaImportActivity extends Activity {
         ok.setVisibility(View.GONE);
         bar.setVisibility(View.VISIBLE);
         bar.setIndeterminate(true);
-        message.setText("Opening…");
+        message.setText(R.string.cram_media_opening);
 
         CardMedia media = store(this);
         new Thread(() -> {
@@ -128,11 +129,10 @@ public class MediaImportActivity extends Activity {
                         () -> open(uri),
                         ZstdInputStream::new,
                         (done, total) -> runOnUiThread(() -> showProgress(done, total)));
-                text = summary(r);
+                text = summary(this, r);
             } catch (Exception e) {
                 Log.e(TAG, "media import failed", e);
-                text = "Couldn't read this file. In AnkiDroid, export your deck with “Include media”"
-                        + " ticked and share it here.";
+                text = getString(R.string.cram_media_failed);
             }
             final String result = text;
             runOnUiThread(() -> finishWith(result));
@@ -154,30 +154,29 @@ public class MediaImportActivity extends Activity {
         bar.setIndeterminate(false);
         bar.setMax(Math.max(1, total));
         bar.setProgress(done);
-        message.setText(String.format(Locale.ROOT, "Copying… %d / %d", done, total));
+        message.setText(getString(R.string.cram_media_copying, done, total));
     }
 
-    private static String summary(CardMedia.Result r) {
+    private static String summary(Context c, CardMedia.Result r) {
         if (r.total() == 0) {
-            return "This file has no pictures or sounds. In AnkiDroid, export again with “Include media” ticked.";
+            return c.getString(R.string.cram_media_no_media);
         }
         StringBuilder sb = new StringBuilder();
         if (r.added + r.updated == 0) {
-            sb.append("You already have all of these.");
+            sb.append(c.getString(R.string.cram_media_all_here));
         } else {
-            sb.append("Added ").append(r.added).append(r.added == 1 ? " file" : " files");
+            sb.append(c.getString(R.string.cram_media_added, r.added, megabytes(r.bytes)));
             if (r.updated > 0) {
-                sb.append(", updated ").append(r.updated);
+                sb.append(' ').append(c.getString(R.string.cram_media_updated, r.updated));
             }
-            sb.append(" (").append(megabytes(r.bytes)).append(").");
             if (r.unchanged > 0) {
-                sb.append(' ').append(r.unchanged).append(" were already here.");
+                sb.append(' ').append(c.getString(R.string.cram_media_unchanged, r.unchanged));
             }
         }
         if (r.skipped > 0) {
-            sb.append(' ').append(r.skipped).append(" couldn't be used.");
+            sb.append(' ').append(c.getString(R.string.cram_media_skipped, r.skipped));
         }
-        sb.append("\n\nThey show up on your cards right away.");
+        sb.append("\n\n").append(c.getString(R.string.cram_media_done));
         return sb.toString();
     }
 
@@ -222,7 +221,7 @@ public class MediaImportActivity extends Activity {
         panel.setMinimumWidth(dp(280));
 
         TextView title = new TextView(this);
-        title.setText("Pictures & sounds");
+        title.setText(R.string.cram_media_title);
         title.setTypeface(font);
         title.setTextColor(TITLE_COLOR);
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
@@ -241,7 +240,7 @@ public class MediaImportActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         ok = new Button(this);
-        ok.setText("OK");
+        ok.setText(R.string.cram_media_ok);
         ok.setTypeface(font);
         ok.setTextColor(TEXT_COLOR);
         GradientDrawable btn = new GradientDrawable();

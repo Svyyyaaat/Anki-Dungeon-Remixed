@@ -234,7 +234,7 @@ public class Dungeon {
 
 		initialVersion = version = Game.versionCode;
 		challenges = SPDSettings.challenges();
-		com.cramdungeon.AnkiCheck.newSession();
+		com.cramdungeon.AnkiCheck.newSession( false );
 		mobsToChampion = 1;
 
 		Actor.clear();
@@ -725,7 +725,7 @@ public class Dungeon {
 	public static void loadGame( int save, boolean fullLoad ) throws IOException {
 		
 		Bundle bundle = FileUtils.bundleFromFile( GamesInProgress.gameFile( save ) );
-		com.cramdungeon.AnkiCheck.newSession();
+		com.cramdungeon.AnkiCheck.newSession( true );
 
 		initialVersion = bundle.getInt( INIT_VER );
 		version = bundle.getInt( VERSION );

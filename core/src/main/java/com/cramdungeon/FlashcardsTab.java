@@ -7,6 +7,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.OptionSlider;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.watabou.noosa.ColorBlock;
 import com.watabou.noosa.ui.Component;
@@ -41,14 +42,14 @@ public class FlashcardsTab extends Component {
     protected void createChildren() {
         triggers = new ArrayList<>();
 
-        title = PixelScene.renderTextBlock("Flashcards", 9);
+        title = PixelScene.renderTextBlock(Txt.get("tab.title"), 9);
         title.hardlight(Window.TITLE_COLOR);
         add(title);
 
         sep1 = new ColorBlock(1, 1, 0xFF000000);
         add(sep1);
 
-        chkEnabled = new CheckBox("Quiz me with AnkiDroid cards") {
+        chkEnabled = new CheckBox(Txt.get("tab.enabled")) {
             @Override
             protected void onClick() {
                 super.onClick();
@@ -72,7 +73,7 @@ public class FlashcardsTab extends Component {
         };
         add(btnDeck);
 
-        optThink = new OptionSlider("Time to think",
+        optThink = new OptionSlider(Txt.get("tab.think_time"),
                 AnkiPrefs.MIN_THINK_TIME + "s", AnkiPrefs.MAX_THINK_TIME + "s",
                 AnkiPrefs.MIN_THINK_TIME / THINK_STEP, AnkiPrefs.MAX_THINK_TIME / THINK_STEP) {
             @Override
@@ -83,7 +84,7 @@ public class FlashcardsTab extends Component {
         optThink.setSelectedValue(AnkiPrefs.thinkTimeSeconds() / THINK_STEP);
         add(optThink);
 
-        chkSimple = new CheckBox("Only Again / Good") {
+        chkSimple = new CheckBox(Txt.get("tab.simple")) {
             @Override
             protected void onClick() {
                 super.onClick();
@@ -93,7 +94,7 @@ public class FlashcardsTab extends Component {
         chkSimple.checked(AnkiPrefs.simpleGrading());
         add(chkSimple);
 
-        chkTts = new CheckBox("Read cards aloud") {
+        chkTts = new CheckBox(Txt.get("tab.tts")) {
             @Override
             protected void onClick() {
                 super.onClick();
@@ -103,7 +104,7 @@ public class FlashcardsTab extends Component {
         chkTts.checked(AnkiPrefs.tts());
         add(chkTts);
 
-        btnMedia = new RedButton("Pictures & sounds") {
+        btnMedia = new RedButton(Txt.get("tab.media")) {
             @Override
             protected void onClick() {
                 showMediaOptions();
@@ -122,11 +123,26 @@ public class FlashcardsTab extends Component {
         sep2 = new ColorBlock(1, 1, 0xFF000000);
         add(sep2);
 
-        addTrigger("Combat", AnkiPrefs.TRIGGER_COMBAT);
-        addTrigger("Potions, scrolls", AnkiPrefs.TRIGGER_ITEMS);
-        addTrigger("Loot", AnkiPrefs.TRIGGER_PICKUP);
-        addTrigger("Sneaking", AnkiPrefs.TRIGGER_SNEAK);
-        addTrigger("Searching", AnkiPrefs.TRIGGER_SEARCH);
+        addTrigger(Txt.get("tab.combat"), AnkiPrefs.TRIGGER_COMBAT);
+        addTrigger(Txt.get("tab.items"), AnkiPrefs.TRIGGER_ITEMS);
+        addTrigger(Txt.get("tab.loot"), AnkiPrefs.TRIGGER_PICKUP);
+        addTrigger(Txt.get("tab.sneak"), AnkiPrefs.TRIGGER_SNEAK);
+        addTrigger(Txt.get("tab.search"), AnkiPrefs.TRIGGER_SEARCH);
+
+        // not a trigger, but it fills the free slot of the grid
+        CheckBox soft = new CheckBox(Txt.get("tab.soft_start")) {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                AnkiPrefs.softStart(checked());
+                if (checked()) {
+                    ShatteredPixelDungeon.scene().addToFront(new WndMessage(Txt.get("tab.soft_start_info")));
+                }
+            }
+        };
+        soft.checked(AnkiPrefs.softStart());
+        triggers.add(soft);
+        add(soft);
     }
 
     private void addTrigger(String label, String key) {
@@ -199,17 +215,17 @@ public class FlashcardsTab extends Component {
     }
 
     private static String frequencyLabel() {
-        return "Cramming: " + AnkiPrefs.frequency().label;
+        return Txt.get("tab.cramming", AnkiPrefs.frequency().label());
     }
 
     private static void showFrequencyOptions(RedButton button) {
         AnkiMomentum.Frequency[] all = AnkiMomentum.Frequency.values();
         String[] labels = new String[all.length];
         for (int i = 0; i < all.length; i++) {
-            labels[i] = all[i] == AnkiPrefs.frequency() ? all[i].label + " (now)" : all[i].label;
+            labels[i] = all[i] == AnkiPrefs.frequency() ? Txt.get("freq.now", all[i].label()) : all[i].label();
         }
-        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Cramming",
-                "How often actions ask you to cram.", labels) {
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions(Txt.get("freq.title"),
+                Txt.get("freq.desc"), labels) {
             @Override
             protected void onSelect(int index) {
                 AnkiPrefs.frequency(all[index]);
@@ -224,10 +240,9 @@ public class FlashcardsTab extends Component {
             return;
         }
         String message = platform.mediaSummary() + "\n\n"
-                + "To see your cards' pictures and hear their sounds, export your deck from AnkiDroid "
-                + "with _Include media_ ticked and share it to Cram Dungeon.";
-        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Pictures & sounds", message,
-                "Add from a file", "Remove all") {
+                + Txt.get("media.help");
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions(Txt.get("media.title"), message,
+                Txt.get("media.add"), Txt.get("media.remove_all")) {
             @Override
             protected void onSelect(int index) {
                 if (index == 0) {
@@ -240,9 +255,9 @@ public class FlashcardsTab extends Component {
     }
 
     private static void confirmClear(AnkiPlatform platform) {
-        ShatteredPixelDungeon.scene().addToFront(new WndOptions("Remove all?",
-                "Your cards will show their pictures and sounds as missing until you add them again.",
-                "Remove", "Keep") {
+        ShatteredPixelDungeon.scene().addToFront(new WndOptions(Txt.get("media.confirm_title"),
+                Txt.get("media.confirm_text"),
+                Txt.get("media.remove"), Txt.get("media.keep")) {
             @Override
             protected void onSelect(int index) {
                 if (index == 0) {
@@ -255,10 +270,10 @@ public class FlashcardsTab extends Component {
     private static String deckLabel() {
         AnkiPlatform platform = AnkiCheck.platform();
         if (platform != null && platform.status() == AnkiPlatform.Status.NOT_INSTALLED) {
-            return "Get AnkiDroid";
+            return Txt.get("tab.get_ankidroid");
         }
         if (!AnkiPrefs.hasDeck()) {
-            return "Choose a deck";
+            return Txt.get("tab.choose_deck");
         }
         String name = AnkiPrefs.deckName();
         // nested decks: the leaf name is what fits
@@ -269,6 +284,6 @@ public class FlashcardsTab extends Component {
         if (name.length() > 18) {
             name = name.substring(0, 17) + "..";
         }
-        return "Deck: " + name;
+        return Txt.get("tab.deck", name);
     }
 }

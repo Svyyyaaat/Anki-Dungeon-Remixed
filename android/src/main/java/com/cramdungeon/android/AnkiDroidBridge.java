@@ -20,6 +20,7 @@ import com.cramdungeon.CardTts;
 import com.cramdungeon.CardMedia;
 import com.cramdungeon.CardOutcome;
 import com.cramdungeon.CardRequest;
+import com.cramdungeon.Txt;
 import com.watabou.noosa.Game;
 
 import org.json.JSONArray;
@@ -425,10 +426,9 @@ public class AnkiDroidBridge implements AnkiPlatform {
     public String mediaSummary() {
         int count = media.count();
         if (count == 0) {
-            return "No pictures or sounds added yet.";
+            return Txt.get("media.none");
         }
-        return count + (count == 1 ? " file" : " files")
-                + " added (" + MediaImportActivity.megabytes(media.bytes()) + ").";
+        return Txt.get("media.count", count, MediaImportActivity.megabytes(media.bytes()));
     }
 
     @Override
@@ -605,12 +605,27 @@ public class AnkiDroidBridge implements AnkiPlatform {
         config.put("canUndo", canUndo);
         config.put("missingMedia", missingMedia(question, answer));
         config.put("newCard", card.isNew);
+        config.put("text", cardTexts());
 
         return template()
                 .replace("%%CONFIG%%", config.toString())
                 .replace("%%CSS%%", type.css)
                 .replace("%%QUESTION%%", clean(question, questionTts))
                 .replace("%%ANSWER%%", clean(answer, answerTts));
+    }
+
+    private static final String[] CARD_TEXTS = {
+            "back", "bury", "suspend", "new_card", "honesty", "show_answer", "again", "again_sub", "hard",
+            "good", "good_sub", "easy", "times_up", "continue", "continue_sub", "no_other", "image_missing",
+            "media_missing"};
+
+    /** The card screen's own strings in the game's language. */
+    private static JSONObject cardTexts() throws org.json.JSONException {
+        JSONObject text = new JSONObject();
+        for (String key : CARD_TEXTS) {
+            text.put(key, Txt.get("card." + key));
+        }
+        return text;
     }
 
     /** Whether the card was never studied. Older AnkiDroid versions don't report it: then not new. */

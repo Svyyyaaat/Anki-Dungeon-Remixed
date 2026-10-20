@@ -22,6 +22,8 @@ import java.util.function.Supplier;
 public final class AnkiCheck {
 
     public static final int NEW_CARDS_BATCH = 10;
+    /** Checks played without cards after loading a save, with soft start on. */
+    public static final int SOFT_START_CHECKS = 10;
 
     private static AnkiPlatform platform;
 
@@ -32,6 +34,7 @@ public final class AnkiCheck {
     private static volatile boolean exhausted;
     // "Continue without cards": off until the player leaves this game
     private static volatile boolean pausedThisSession;
+    private static int softStartLeft;
     private static boolean setupOffered;
 
     private AnkiCheck() {
@@ -80,6 +83,13 @@ public final class AnkiCheck {
             onResult.accept(CheckResult.SKIPPED);
             return;
         }
+        synchronized (AnkiCheck.class) {
+            if (softStartLeft > 0) {
+                softStartLeft--;
+                onResult.accept(CheckResult.SKIPPED);
+                return;
+            }
+        }
         CheckResult banked = AnkiMomentum.spend();
         if (banked != null) {
             onResult.accept(banked);
@@ -107,7 +117,7 @@ public final class AnkiCheck {
         }
 
         final long limit = AnkiPrefs.thinkTimeSeconds() * 1000L;
-        CardRequest request = new CardRequest(next.kind.title, limit, AnkiPrefs.simpleGrading());
+        CardRequest request = new CardRequest(next.kind.title(), limit, AnkiPrefs.simpleGrading());
         platform.presentCard(AnkiPrefs.deckId(), request, outcome -> {
             if (outcome.kind == CardOutcome.Kind.NO_CARDS) {
                 exhausted = true;
@@ -146,12 +156,12 @@ public final class AnkiCheck {
 
     private static void deckFinished() {
         String deck = AnkiPrefs.deckName();
-        show(() -> new WndOptions("Deck finished!",
-                "You went through every card that is due in \"" + deck + "\" today. What now?",
-                "Choose another deck",
-                "Learn " + NEW_CARDS_BATCH + " new cards",
-                "Continue without cards",
-                "Save and quit") {
+        show(() -> new WndOptions(Txt.get("done.title"),
+                Txt.get("done.text", deck),
+                Txt.get("done.other_deck"),
+                Txt.get("done.learn_new", NEW_CARDS_BATCH),
+                Txt.get("done.continue"),
+                Txt.get("done.quit")) {
             @Override
             protected void onSelect(int index) {
                 switch (index) {
@@ -176,13 +186,13 @@ public final class AnkiCheck {
         platform.learnNewCards(AnkiPrefs.deckId(), AnkiPrefs.deckName(), NEW_CARDS_BATCH, found -> {
             if (found > 0) {
                 exhausted = false;
-                GLog.p("%d new cards joined the fight.", found);
+                GLog.p(Txt.get("log.new_joined", found));
             } else {
-                show(() -> new WndOptions("No new cards",
-                        "\"" + AnkiPrefs.deckName() + "\" has no unstudied cards left.",
-                        "Choose another deck",
-                        "Continue without cards",
-                        "Save and quit") {
+                show(() -> new WndOptions(Txt.get("nonew.title"),
+                        Txt.get("nonew.text", AnkiPrefs.deckName()),
+                        Txt.get("done.other_deck"),
+                        Txt.get("done.continue"),
+                        Txt.get("done.quit")) {
                     @Override
                     protected void onSelect(int index) {
                         if (index == 0) {
@@ -198,11 +208,15 @@ public final class AnkiCheck {
         });
     }
 
-    /** Called when a run starts or a save is loaded: cards are back on and the deck is checked afresh. */
-    public static void newSession() {
+    /**
+     * Called when a run starts or a save is loaded: cards are back on and the deck is checked
+     * afresh. With soft start on, a loaded save plays its first few checks without cards.
+     */
+    public static void newSession(boolean loadedSave) {
         pausedThisSession = false;
         synchronized (AnkiCheck.class) {
             setupOffered = false;
+            softStartLeft = loadedSave && AnkiPrefs.softStart() ? SOFT_START_CHECKS : 0;
         }
         exhausted = false;
         AnkiMomentum.reset();
@@ -215,7 +229,7 @@ public final class AnkiCheck {
     /** Plays on without cards until the player leaves this game; the setting stays on. */
     private static void continueWithoutCards() {
         pausedThisSession = true;
-        GLog.i("No more cards in this game. They're back the next time you start or load a game.");
+        GLog.i(Txt.get("log.paused"));
     }
 
     private static void saveAndQuit() {
@@ -241,7 +255,7 @@ public final class AnkiCheck {
                 if (granted) {
                     chooseDeck();
                 } else {
-                    GLog.w("Cram Dungeon needs access to AnkiDroid to show your cards.");
+                    GLog.w(Txt.get("log.no_permission"));
                 }
             });
             return;
@@ -251,7 +265,7 @@ public final class AnkiCheck {
 
     private static void showDeckList(List<AnkiDeck> decks) {
         if (decks.isEmpty()) {
-            show(() -> new WndOptions("No decks", "AnkiDroid didn't report any decks.", "OK"));
+            show(() -> new WndOptions(Txt.get("decks.none_title"), Txt.get("decks.none_text"), Txt.get("ok")));
             return;
         }
         show(() -> new WndAnkiDecks(decks));
@@ -263,16 +277,15 @@ public final class AnkiCheck {
         exhausted = false;
         AnkiMomentum.reset();
         platform.deckChanged();
-        GLog.p("Now studying: %s", deck.name);
+        GLog.p(Txt.get("log.studying", deck.name));
     }
 
     private static void offerInstall() {
-        show(() -> new WndOptions("AnkiDroid not found",
-                "Cram Dungeon quizzes you with cards from the AnkiDroid app, which isn't installed. "
-                        + "Install it, add a deck, then pick it in Settings > Flashcards.",
-                "Get AnkiDroid",
-                "Play without cards",
-                "Later") {
+        show(() -> new WndOptions(Txt.get("install.title"),
+                Txt.get("install.text"),
+                Txt.get("install.get"),
+                Txt.get("setup.play_without"),
+                Txt.get("setup.later")) {
             @Override
             protected void onSelect(int index) {
                 if (index == 0) {
@@ -297,12 +310,11 @@ public final class AnkiCheck {
             return;
         }
 
-        show(() -> new WndOptions("Flashcards",
-                "Fights, potions, loot and sneaking will quiz you with cards from your AnkiDroid deck. "
-                        + "Answer fast and well and fortune favours you.",
-                "Choose a deck",
-                "Play without cards",
-                "Later") {
+        show(() -> new WndOptions(Txt.get("setup.title"),
+                Txt.get("setup.text"),
+                Txt.get("setup.choose"),
+                Txt.get("setup.play_without"),
+                Txt.get("setup.later")) {
             @Override
             protected void onSelect(int index) {
                 if (index == 0) {

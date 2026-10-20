@@ -3,6 +3,7 @@ package com.shatteredpixel.shatteredpixeldungeon.items.potions;
 import com.cramdungeon.AnkiCheck;
 import com.cramdungeon.CheckKind;
 import com.cramdungeon.CheckResult;
+import com.cramdungeon.Txt;
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
@@ -86,9 +87,9 @@ public final class AnkiPotions {
             }
 
             if (result.correct) {
-                GLog.p("Your knowledge tames the brew.");
+                GLog.p(Txt.get("potion.tamed"));
             } else {
-                GLog.n("The brew turns against you!");
+                GLog.n(Txt.get("potion.turned"));
             }
 
             boolean wantHarmful = !result.correct;
@@ -139,9 +140,9 @@ public final class AnkiPotions {
         }
 
         if (result.correct) {
-            GLog.p("Your wits turn the flask into a weapon.");
+            GLog.p(Txt.get("potion.weapon"));
         } else {
-            GLog.n("The flask goes soft as it flies...");
+            GLog.n(Txt.get("potion.soft"));
         }
 
         boolean wantHarmful = result.correct;
@@ -155,7 +156,7 @@ public final class AnkiPotions {
 
     private static void slipped(Potion potion) {
         potion.setKnown();
-        GLog.n("The %s slipped from your hands and is lost!", potion.name());
+        GLog.n(Txt.get("potion.lost", potion.name()));
         Sample.INSTANCE.play(Assets.Sounds.SHATTER);
     }
 

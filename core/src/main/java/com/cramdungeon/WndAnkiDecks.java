@@ -15,7 +15,7 @@ public class WndAnkiDecks extends Window {
         ScrollingListPane list = new ScrollingListPane();
         add(list);
 
-        list.addTitle("Choose a deck");
+        list.addTitle(Txt.get("decks.title"));
 
         long current = AnkiPrefs.deckId();
         for (AnkiDeck deck : decks) {
