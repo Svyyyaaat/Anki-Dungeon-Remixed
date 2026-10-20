@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Képek és hangok</string>
+    <string name="cram_media_pick">Válaszd ki a paklit, amelyet az AnkiDroidból exportáltál.</string>
+    <string name="cram_media_no_picker">Nem sikerült megnyitni a fájlválasztót. Inkább oszd meg a paklidat az AnkiDroidból a Cram Dungeon alkalmazással.</string>
+    <string name="cram_media_opening">Megnyitás…</string>
+    <string name="cram_media_copying">Másolás… %1$d / %2$d</string>
+    <string name="cram_media_failed">Nem sikerült beolvasni ezt a fájlt. Az AnkiDroidban exportáld a paklidat bepipált „Médiafájlok belefoglalása” opcióval, és oszd meg ide.</string>
+    <string name="cram_media_no_media">Ebben a fájlban nincsenek képek vagy hangok. Az AnkiDroidban exportáld újra bepipált „Médiafájlok belefoglalása” opcióval.</string>
+    <string name="cram_media_all_here">Ezek mind megvannak már.</string>
+    <string name="cram_media_added">Új fájlok: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Frissítve: %1$d.</string>
+    <string name="cram_media_unchanged">Már megvolt: %1$d.</string>
+    <string name="cram_media_skipped">Nem használható: %1$d.</string>
+    <string name="cram_media_done">Azonnal megjelennek a kártyáidon.</string>
+    <string name="cram_media_ok">OK</string>
+</resources>

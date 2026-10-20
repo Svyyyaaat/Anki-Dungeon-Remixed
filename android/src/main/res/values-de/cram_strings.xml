@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Bilder &amp; Töne</string>
+    <string name="cram_media_pick">Wähle den Stapel, den du aus AnkiDroid exportiert hast.</string>
+    <string name="cram_media_no_picker">Die Dateiauswahl konnte nicht geöffnet werden. Teile deinen Stapel stattdessen aus AnkiDroid mit Cram Dungeon.</string>
+    <string name="cram_media_opening">Wird geöffnet…</string>
+    <string name="cram_media_copying">Kopiere… %1$d / %2$d</string>
+    <string name="cram_media_failed">Diese Datei konnte nicht gelesen werden. Exportiere deinen Stapel in AnkiDroid mit angehaktem „Medien einschließen“ und teile ihn hierher.</string>
+    <string name="cram_media_no_media">Diese Datei enthält keine Bilder oder Töne. Exportiere in AnkiDroid erneut mit angehaktem „Medien einschließen“.</string>
+    <string name="cram_media_all_here">Du hast diese schon alle.</string>
+    <string name="cram_media_added">Neue Dateien: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Aktualisiert: %1$d.</string>
+    <string name="cram_media_unchanged">Bereits vorhanden: %1$d.</string>
+    <string name="cram_media_skipped">Nicht verwendbar: %1$d.</string>
+    <string name="cram_media_done">Sie erscheinen sofort auf deinen Karten.</string>
+    <string name="cram_media_ok">OK</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Bilder &amp; ljud</string>
+    <string name="cram_media_pick">Välj kortleken du exporterade från AnkiDroid.</string>
+    <string name="cram_media_no_picker">Kunde inte öppna filväljaren. Dela din kortlek till Cram Dungeon från AnkiDroid i stället.</string>
+    <string name="cram_media_opening">Öppnar…</string>
+    <string name="cram_media_copying">Kopierar… %1$d / %2$d</string>
+    <string name="cram_media_failed">Kunde inte läsa den här filen. Exportera din kortlek i AnkiDroid med ”Inkludera media” ikryssat och dela den hit.</string>
+    <string name="cram_media_no_media">Den här filen har inga bilder eller ljud. Exportera igen i AnkiDroid med ”Inkludera media” ikryssat.</string>
+    <string name="cram_media_all_here">Du har redan alla dessa.</string>
+    <string name="cram_media_added">Nya filer: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Uppdaterade: %1$d.</string>
+    <string name="cram_media_unchanged">Fanns redan: %1$d.</string>
+    <string name="cram_media_skipped">Kunde inte användas: %1$d.</string>
+    <string name="cram_media_done">De syns på dina kort direkt.</string>
+    <string name="cram_media_ok">OK</string>
+</resources>

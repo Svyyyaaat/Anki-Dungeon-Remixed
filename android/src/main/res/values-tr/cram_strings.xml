@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Resimler ve sesler</string>
+    <string name="cram_media_pick">AnkiDroid\'den dışa aktardığın desteyi seç.</string>
+    <string name="cram_media_no_picker">Dosya seçici açılamadı. Bunun yerine desteni AnkiDroid\'den Cram Dungeon ile paylaş.</string>
+    <string name="cram_media_opening">Açılıyor…</string>
+    <string name="cram_media_copying">Kopyalanıyor… %1$d / %2$d</string>
+    <string name="cram_media_failed">Bu dosya okunamadı. AnkiDroid\'de desteni “Medyayı dahil et” işaretli olarak dışa aktar ve buraya paylaş.</string>
+    <string name="cram_media_no_media">Bu dosyada resim veya ses yok. AnkiDroid\'de “Medyayı dahil et” işaretli olarak yeniden dışa aktar.</string>
+    <string name="cram_media_all_here">Bunların hepsi zaten sende var.</string>
+    <string name="cram_media_added">Yeni dosyalar: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Güncellenen: %1$d.</string>
+    <string name="cram_media_unchanged">Zaten mevcut: %1$d.</string>
+    <string name="cram_media_skipped">Kullanılamayan: %1$d.</string>
+    <string name="cram_media_done">Kartlarında hemen görünecekler.</string>
+    <string name="cram_media_ok">Tamam</string>
+</resources>
