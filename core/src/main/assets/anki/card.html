@@ -255,24 +255,29 @@ button.snd:active {
 #draw {
     display: none;
     margin-top: 8px;
-    align-items: stretch;
-    gap: 8px;
 }
 
+/* the pad spans the panel; its stroke buttons sit on it */
 #pad {
-    flex: 0 0 auto;
-    width: min(calc(100% - 64px), 38vh);
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
     aspect-ratio: 1 / 1;
-    margin: 0 auto;
     background: #f3ead2;
     border: 3px solid #1d1e1a;
     touch-action: none;
 }
 
-#pad svg {
+#pad-svg {
     width: 100%;
     height: 100%;
     display: block;
+}
+
+#pad .pad-btn svg {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
 }
 
 #pad .guide {
@@ -306,16 +311,28 @@ button.snd:active {
     stroke-width: 6;
 }
 
-#draw-tools {
+#pad .pad-btn {
+    position: absolute;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    /* ink on paper, like the strokes, rather than the game's stone buttons */
+    color: #241c10;
+    background: rgba(255, 250, 235, 0.85);
+    border: 2px solid #241c10;
+    border-image: none;
+    text-shadow: none;
 }
 
-#draw-tools .btn {
-    flex: 0 0 auto;
-    min-width: 48px;
-    font-size: 22px;
+#btn-undo { top: 6px; right: 56px; }
+#btn-redo { top: 6px; right: 6px; }
+#btn-clear { bottom: 6px; right: 6px; }
+
+#pad .pad-btn:disabled {
+    opacity: 0.25;
 }
 
 #result {
@@ -360,10 +377,9 @@ button.snd:active {
                     <g id="ref"></g>
                     <g id="ink"></g>
                 </svg>
-            </div>
-            <div id="draw-tools">
-                <button class="btn grey" id="btn-undo">&#8630;</button>
-                <button class="btn grey" id="btn-redo">&#8631;</button>
+                <button class="btn grey pad-btn" id="btn-undo"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7H4V2"/><path d="M4 7c2.2-2.6 5-4 8.5-4A8.5 8.5 0 1 1 5 15.5"/></svg></button>
+                <button class="btn grey pad-btn" id="btn-redo"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h5V2"/><path d="M20 7c-2.2-2.6-5-4-8.5-4A8.5 8.5 0 1 0 19 15.5"/></svg></button>
+                <button class="btn grey pad-btn" id="btn-clear"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
             </div>
         </div>
         <div id="result"></div>
@@ -696,6 +712,13 @@ function pointsAttr(pts) {
     return pts.map(function (p) { return p.x.toFixed(1) + "," + p.y.toFixed(1); }).join(" ");
 }
 
+/* after checking, the pad stays open for practice: the first change drops the right/wrong colours */
+function edited() {
+    if (checked && verdict && verdict.perStroke) {
+        verdict = {correct: verdict.correct, mistakes: verdict.mistakes, perStroke: null};
+    }
+}
+
 function renderInk() {
     var g = el("ink");
     g.innerHTML = "";
@@ -709,8 +732,9 @@ function renderInk() {
     if (current) {
         g.appendChild(svgEl("polyline", {"class": "ink", points: pointsAttr(current)}));
     }
-    el("btn-undo").disabled = checked || strokes.length === 0;
-    el("btn-redo").disabled = checked || redoStack.length === 0;
+    el("btn-undo").disabled = strokes.length === 0;
+    el("btn-redo").disabled = redoStack.length === 0;
+    el("btn-clear").disabled = strokes.length === 0;
 }
 
 function showReference() {
@@ -724,10 +748,14 @@ function showReference() {
 function startPad() {
     var pad = el("pad");
     pad.addEventListener("pointerdown", function (ev) {
-        if (checked || revealed) {
+        if (ev.target.closest && ev.target.closest("button")) {
+            return;
+        }
+        if (revealed && !checked) {
             return;
         }
         ev.preventDefault();
+        edited();
         pad.setPointerCapture(ev.pointerId);
         current = [padPoint(ev)];
         renderInk();
@@ -757,14 +785,27 @@ function startPad() {
     pad.addEventListener("pointercancel", end);
 
     el("btn-undo").addEventListener("click", function () {
-        if (!checked && strokes.length) {
+        if (strokes.length) {
+            edited();
             redoStack.push(strokes.pop());
             renderInk();
         }
     });
     el("btn-redo").addEventListener("click", function () {
-        if (!checked && redoStack.length) {
+        if (redoStack.length) {
+            edited();
             strokes.push(redoStack.pop());
+            renderInk();
+        }
+    });
+    el("btn-clear").addEventListener("click", function () {
+        if (strokes.length) {
+            edited();
+            // one undo brings the whole drawing back, stroke by stroke
+            for (var i = strokes.length - 1; i >= 0; i--) {
+                redoStack.push(strokes[i]);
+            }
+            strokes = [];
             renderInk();
         }
     });
