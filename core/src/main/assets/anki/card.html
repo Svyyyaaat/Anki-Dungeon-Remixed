@@ -398,6 +398,31 @@ var lockTimer = null;
 
 function el(id) { return document.getElementById(id); }
 
+/*
+ * Buttons react when the finger lifts off them, not on the browser's "click",
+ * which Android's web view can drop for the first tap after a stroke on the pad.
+ */
+function onTap(node, fn) {
+    var down = false;
+    var firedAt = 0;
+    node.addEventListener("pointerdown", function () { down = true; });
+    node.addEventListener("pointercancel", function () { down = false; });
+    node.addEventListener("pointerup", function (ev) {
+        if (!down) {
+            return;
+        }
+        down = false;
+        firedAt = Date.now();
+        fn.call(node, ev);
+    });
+    node.addEventListener("click", function (ev) {
+        // already handled when the finger lifted
+        if (Date.now() - firedAt > 700) {
+            fn.call(node, ev);
+        }
+    });
+}
+
 // the game's translation of a card-screen string, English as the fallback
 function T(key, english) {
     var text = CONFIG.text && CONFIG.text[key];
@@ -424,7 +449,7 @@ function button(label, sub, onClick) {
         s.textContent = sub;
         b.appendChild(s);
     }
-    b.addEventListener("click", function () {
+    onTap(b, function () {
         if (!isLocked()) {
             onClick();
         }
@@ -532,7 +557,7 @@ function wire(root) {
         });
     });
     Array.prototype.forEach.call(root.querySelectorAll("button.snd"), function (b) {
-        b.addEventListener("click", function (e) {
+        onTap(b, function (e) {
             e.stopPropagation();
             play([clip(b)]);
         });
@@ -779,7 +804,7 @@ function startPad() {
     pad.addEventListener("pointerup", end);
     pad.addEventListener("pointercancel", end);
 
-    el("btn-undo").addEventListener("click", function () {
+    onTap(el("btn-undo"), function () {
         edited();
         if (cleared) {
             strokes = cleared;
@@ -789,7 +814,7 @@ function startPad() {
         }
         renderInk();
     });
-    el("btn-clear").addEventListener("click", function () {
+    onTap(el("btn-clear"), function () {
         if (strokes.length) {
             edited();
             cleared = strokes;
@@ -989,7 +1014,7 @@ function drawQuestionButtons() {
         mn.style.display = "block";
     }
 
-    el("btn-back").addEventListener("click", function () {
+    onTap(el("btn-back"), function () {
         if (isLocked() || this.disabled) {
             return;
         }
@@ -1000,14 +1025,14 @@ function drawQuestionButtons() {
             AnkiBridge.undoSkip();
         }
     });
-    el("btn-bury").addEventListener("click", function () {
+    onTap(el("btn-bury"), function () {
         if (isLocked() || this.disabled) {
             return;
         }
         busy();
         AnkiBridge.skip("bury");
     });
-    el("btn-suspend").addEventListener("click", function () {
+    onTap(el("btn-suspend"), function () {
         if (isLocked() || this.disabled) {
             return;
         }
