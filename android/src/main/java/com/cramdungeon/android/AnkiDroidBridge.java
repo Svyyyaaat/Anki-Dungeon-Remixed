@@ -448,33 +448,51 @@ public class AnkiDroidBridge implements AnkiPlatform {
     public void deckChanged() {
         io.execute(() -> {
             extraNew.clear();
+            queue.clear();
+            answered.clear();
             lastCardKey = "";
         });
     }
 
     // --- provider access (io thread only)
 
-    /** Next due card that isn't already part of this check ({@code exclude}), else a learned-new one. */
+    // How many cards of AnkiDroid's queue are taken in one go. The provider rebuilds the
+    // queue on every request, and a rebuilt queue never starts with a new card: Anki spreads
+    // new cards evenly through the reviews. Asking for just the head every time would only
+    // ever show reviews, so the game works through a long stretch of the queue in order.
+    private static final int QUEUE_BATCH = 100;
+    private final ArrayDeque<CardRef> queue = new ArrayDeque<>();
+    // cards answered from the current batch; they can come back in a refetched one
+    private final Set<String> answered = new HashSet<>();
+
+    /** Next card for this check (never one in {@code exclude}): Anki's order, else a learned-new one. */
     private CardRef nextCard(long deckId, Set<String> exclude) {
-        List<CardRef> due = new ArrayList<>();
-        try (Cursor c = resolver().query(SCHEDULE, null, "limit=?,deckID=?",
-                new String[]{Integer.toString(exclude.size() + 3), Long.toString(deckId)}, null)) {
-            while (c != null && c.moveToNext()) {
-                CardRef card = new CardRef(c.getLong(c.getColumnIndexOrThrow("note_id")),
-                        c.getInt(c.getColumnIndexOrThrow("ord")));
-                if (!exclude.contains(card.key())) {
-                    due.add(card);
-                }
+        // a learning card that is due right now sits at the head of a fresh queue: it goes first
+        CardRef head = null;
+        CardRef repeat = null; // the card just answered, if nothing else is left
+        for (CardRef card : fetchQueue(deckId, exclude.size() + 3)) {
+            if (exclude.contains(card.key())) {
+                continue;
             }
-        }
-        // don't show the card just answered again right away if anything else is due
-        for (CardRef card : due) {
             if (!card.key().equals(lastCardKey)) {
-                return card;
+                head = card;
+                break;
             }
+            repeat = card;
         }
-        if (!due.isEmpty()) {
-            return due.get(0);
+        if (head != null && cardQueue(head) == QUEUE_LEARNING) {
+            return head;
+        }
+
+        CardRef next = fromBatch(deckId, exclude, true);
+        if (next == null) {
+            next = fromBatch(deckId, exclude, false);
+        }
+        if (next == null) {
+            next = head != null ? head : repeat;
+        }
+        if (next != null) {
+            return next;
         }
         long[] fresh;
         while ((fresh = extraNew.poll()) != null) {
@@ -484,6 +502,54 @@ public class AnkiDroidBridge implements AnkiPlatform {
             }
         }
         return null;
+    }
+
+    private static final int QUEUE_LEARNING = 1;
+    private static final int QUEUE_UNKNOWN = -100;
+
+    /** The next card of the batch that is still waiting; {@code useCurrent} false fetches a new batch first. */
+    private CardRef fromBatch(long deckId, Set<String> exclude, boolean useCurrent) {
+        if (!useCurrent) {
+            queue.clear();
+            answered.clear();
+            queue.addAll(fetchQueue(deckId, QUEUE_BATCH));
+        }
+        CardRef card;
+        while ((card = queue.poll()) != null) {
+            if (exclude.contains(card.key()) || answered.contains(card.key())) {
+                continue;
+            }
+            int q = cardQueue(card);
+            // buried or suspended meanwhile; learning cards go first by themselves once they are due
+            if (q == QUEUE_LEARNING || (q < 0 && q != QUEUE_UNKNOWN)) {
+                continue;
+            }
+            return card;
+        }
+        return null;
+    }
+
+    private List<CardRef> fetchQueue(long deckId, int limit) {
+        List<CardRef> cards = new ArrayList<>();
+        try (Cursor c = resolver().query(SCHEDULE, null, "limit=?,deckID=?",
+                new String[]{Integer.toString(limit), Long.toString(deckId)}, null)) {
+            while (c != null && c.moveToNext()) {
+                cards.add(new CardRef(c.getLong(c.getColumnIndexOrThrow("note_id")),
+                        c.getInt(c.getColumnIndexOrThrow("ord"))));
+            }
+        }
+        return cards;
+    }
+
+    /** Anki's queue code for the card; QUEUE_UNKNOWN when AnkiDroid doesn't report it. */
+    private int cardQueue(CardRef card) {
+        Uri cardUri = Uri.withAppendedPath(Uri.withAppendedPath(
+                Uri.withAppendedPath(NOTES, Long.toString(card.noteId)), "cards"), Integer.toString(card.ord));
+        try (Cursor c = resolver().query(cardUri, new String[]{"queue"}, null, null, null)) {
+            return c != null && c.moveToFirst() ? c.getInt(0) : QUEUE_UNKNOWN;
+        } catch (Exception e) {
+            return QUEUE_UNKNOWN;
+        }
     }
 
     private String render(CardRef card, CardRequest request, long startElapsedMs, boolean canUndo)
@@ -690,6 +756,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
     }
 
     private void answer(CardRef card, int ease, long totalMs) {
+        answered.add(card.key());
         ContentValues values = new ContentValues();
         values.put("note_id", card.noteId);
         values.put("ord", card.ord);

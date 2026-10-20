@@ -206,6 +206,10 @@ public final class AnkiCheck {
         }
         exhausted = false;
         AnkiMomentum.reset();
+        if (platform != null) {
+            // the day may have changed since: start again from AnkiDroid's current queue
+            platform.deckChanged();
+        }
     }
 
     /** Plays on without cards until the player leaves this game; the setting stays on. */
