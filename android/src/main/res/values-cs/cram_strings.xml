@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Obrázky a zvuky</string>
+    <string name="cram_media_pick">Vyber balíček, který jsi vyexportoval z AnkiDroid.</string>
+    <string name="cram_media_no_picker">Nepodařilo se otevřít výběr souborů. Místo toho sdílej balíček do Cram Dungeon přímo z AnkiDroid.</string>
+    <string name="cram_media_opening">Otevírání…</string>
+    <string name="cram_media_copying">Kopírování… %1$d / %2$d</string>
+    <string name="cram_media_failed">Tento soubor nejde přečíst. V AnkiDroid vyexportuj balíček se zaškrtnutou volbou „Zahrnout média“ a sdílej ho sem.</string>
+    <string name="cram_media_no_media">Tento soubor neobsahuje žádné obrázky ani zvuky. V AnkiDroid exportuj znovu se zaškrtnutou volbou „Zahrnout média“.</string>
+    <string name="cram_media_all_here">Všechny tyto soubory už máš.</string>
+    <string name="cram_media_added">Nové soubory: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Aktualizováno: %1$d.</string>
+    <string name="cram_media_unchanged">Už tu jsou: %1$d.</string>
+    <string name="cram_media_skipped">Nepoužitelné: %1$d.</string>
+    <string name="cram_media_done">Na kartičkách se objeví hned.</string>
+    <string name="cram_media_ok">OK</string>
+</resources>

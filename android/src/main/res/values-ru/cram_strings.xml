@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cram_media_title">Картинки и звуки</string>
+    <string name="cram_media_pick">Выберите колоду, экспортированную из AnkiDroid.</string>
+    <string name="cram_media_no_picker">Не удалось открыть выбор файлов. Вместо этого поделитесь колодой с Cram Dungeon из AnkiDroid.</string>
+    <string name="cram_media_opening">Открытие…</string>
+    <string name="cram_media_copying">Копирование… %1$d / %2$d</string>
+    <string name="cram_media_failed">Не удалось прочитать этот файл. Экспортируйте колоду в AnkiDroid с отметкой «Включить медиафайлы» и поделитесь ею сюда.</string>
+    <string name="cram_media_no_media">В этом файле нет картинок и звуков. Экспортируйте колоду из AnkiDroid ещё раз с отметкой «Включить медиафайлы».</string>
+    <string name="cram_media_all_here">У вас уже есть все эти файлы.</string>
+    <string name="cram_media_added">Новых файлов: %1$d (%2$s).</string>
+    <string name="cram_media_updated">Обновлено: %1$d.</string>
+    <string name="cram_media_unchanged">Уже есть: %1$d.</string>
+    <string name="cram_media_skipped">Не удалось использовать: %1$d.</string>
+    <string name="cram_media_done">Они сразу появятся на ваших карточках.</string>
+    <string name="cram_media_ok">ОК</string>
+</resources>
