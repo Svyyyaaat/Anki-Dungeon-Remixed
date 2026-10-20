@@ -274,12 +274,6 @@ button.snd:active {
     display: block;
 }
 
-#pad .pad-btn svg {
-    width: 24px;
-    height: 24px;
-    flex: 0 0 auto;
-}
-
 #pad .guide {
     stroke: #c9bc9a;
     stroke-width: 0.6;
@@ -314,25 +308,25 @@ button.snd:active {
 #pad .pad-btn {
     position: absolute;
     min-width: 44px;
-    min-height: 44px;
+    min-height: 40px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    /* ink on paper, like the strokes, rather than the game's stone buttons */
-    color: #241c10;
-    background: rgba(255, 250, 235, 0.85);
-    border: 2px solid #241c10;
-    border-image: none;
-    text-shadow: none;
 }
 
-#btn-undo { top: 6px; right: 56px; }
-#btn-redo { top: 6px; right: 6px; }
+#btn-undo { top: 6px; right: 6px; }
 #btn-clear { bottom: 6px; right: 6px; }
 
+#pad .pad-btn svg {
+    width: auto;
+    height: auto;
+    flex: 0 0 auto;
+    filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.5));
+}
+
 #pad .pad-btn:disabled {
-    opacity: 0.25;
+    opacity: 0.3;
 }
 
 #result {
@@ -377,9 +371,8 @@ button.snd:active {
                     <g id="ref"></g>
                     <g id="ink"></g>
                 </svg>
-                <button class="btn grey pad-btn" id="btn-undo"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7H4V2"/><path d="M4 7c2.2-2.6 5-4 8.5-4A8.5 8.5 0 1 1 5 15.5"/></svg></button>
-                <button class="btn grey pad-btn" id="btn-redo"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h5V2"/><path d="M20 7c-2.2-2.6-5-4-8.5-4A8.5 8.5 0 1 0 19 15.5"/></svg></button>
-                <button class="btn grey pad-btn" id="btn-clear"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+                <button class="btn grey pad-btn" id="btn-undo"><svg viewBox="0 0 9 8" width="27" height="24" fill="currentColor" shape-rendering="crispEdges"><rect x="3" y="0" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="8" y="5" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="1" y="7" width="1" height="1"/><rect x="2" y="7" width="1" height="1"/><rect x="3" y="7" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/><rect x="5" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/></svg></button>
+                <button class="btn grey pad-btn" id="btn-clear"><svg viewBox="0 0 8 8" width="24" height="24" fill="currentColor" shape-rendering="crispEdges"><rect x="0" y="0" width="1" height="1"/><rect x="1" y="0" width="1" height="1"/><rect x="6" y="0" width="1" height="1"/><rect x="7" y="0" width="1" height="1"/><rect x="0" y="1" width="1" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="7" y="1" width="1" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="2" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="4" width="1" height="1"/><rect x="1" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="3" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/><rect x="2" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="1" y="7" width="1" height="1"/><rect x="6" y="7" width="1" height="1"/><rect x="7" y="7" width="1" height="1"/></svg></button>
             </div>
         </div>
         <div id="result"></div>
@@ -689,7 +682,7 @@ var MAX_MEAN_DIST = 16;
 var MAX_END_DIST = 26;
 
 var strokes = [];     // finished strokes: arrays of {x, y}
-var redoStack = [];
+var cleared = null;   // the drawing the X button wiped, for undo to bring back
 var current = null;   // the stroke being drawn
 var checked = false;
 var verdict = null;   // {correct, mistakes, perStroke}
@@ -735,8 +728,7 @@ function renderInk() {
     if (current) {
         g.appendChild(svgEl("polyline", {"class": "ink", points: pointsAttr(current)}));
     }
-    el("btn-undo").disabled = strokes.length === 0;
-    el("btn-redo").disabled = redoStack.length === 0;
+    el("btn-undo").disabled = strokes.length === 0 && !cleared;
     el("btn-clear").disabled = strokes.length === 0;
 }
 
@@ -781,33 +773,26 @@ function startPad() {
         }
         strokes.push(current);
         current = null;
-        redoStack = [];
+        cleared = null;
         renderInk();
     }
     pad.addEventListener("pointerup", end);
     pad.addEventListener("pointercancel", end);
 
     el("btn-undo").addEventListener("click", function () {
-        if (strokes.length) {
-            edited();
-            redoStack.push(strokes.pop());
-            renderInk();
+        edited();
+        if (cleared) {
+            strokes = cleared;
+            cleared = null;
+        } else if (strokes.length) {
+            strokes.pop();
         }
-    });
-    el("btn-redo").addEventListener("click", function () {
-        if (redoStack.length) {
-            edited();
-            strokes.push(redoStack.pop());
-            renderInk();
-        }
+        renderInk();
     });
     el("btn-clear").addEventListener("click", function () {
         if (strokes.length) {
             edited();
-            // one undo brings the whole drawing back, stroke by stroke
-            for (var i = strokes.length - 1; i >= 0; i--) {
-                redoStack.push(strokes[i]);
-            }
+            cleared = strokes;
             strokes = [];
             renderInk();
         }
