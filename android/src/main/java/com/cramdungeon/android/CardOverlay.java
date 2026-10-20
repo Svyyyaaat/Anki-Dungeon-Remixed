@@ -157,10 +157,11 @@ final class CardOverlay {
     }
 
     /** Swaps in another card of the same session, its clock starting at {@code elapsedMs}. */
-    static void replace(String html, long elapsedMs) {
+    static void replace(String html, long elapsedMs, long thinkLimit) {
         if (web == null || finished) {
             return;
         }
+        thinkLimitMs = thinkLimit;
         load(html, elapsedMs);
     }
 

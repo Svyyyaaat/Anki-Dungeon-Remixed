@@ -13,6 +13,8 @@ public final class AnkiPrefs {
     public static final String CARD_MUTE = "anki_card_mute";
     public static final String FREQUENCY = "anki_frequency";
     public static final String SOFT_START = "anki_soft_start";
+    public static final String DRAW_KANJI = "anki_draw_kanji";
+    public static final String DRAW_TIME = "anki_draw_time";
 
     public static final String TRIGGER_COMBAT = "anki_trigger_combat";
     public static final String TRIGGER_ITEMS = "anki_trigger_items";
@@ -23,6 +25,9 @@ public final class AnkiPrefs {
     public static final int MIN_THINK_TIME = 5;
     public static final int MAX_THINK_TIME = 60;
     public static final int DEFAULT_THINK_TIME = 20;
+    public static final int MIN_DRAW_TIME = 10;
+    public static final int MAX_DRAW_TIME = 120;
+    public static final int DEFAULT_DRAW_TIME = 45;
 
     private AnkiPrefs() {
     }
@@ -115,6 +120,23 @@ public final class AnkiPrefs {
 
     public static void frequency(AnkiMomentum.Frequency value) {
         GameSettings.put(FREQUENCY, value.name());
+    }
+
+    /** Answer writing cards that carry stroke data by drawing the kanji. */
+    public static boolean drawKanji() {
+        return GameSettings.getBoolean(DRAW_KANJI, true);
+    }
+
+    public static void drawKanji(boolean value) {
+        GameSettings.put(DRAW_KANJI, value);
+    }
+
+    public static int drawTimeSeconds() {
+        return GameSettings.getInt(DRAW_TIME, DEFAULT_DRAW_TIME, MIN_DRAW_TIME, MAX_DRAW_TIME);
+    }
+
+    public static void drawTimeSeconds(int value) {
+        GameSettings.put(DRAW_TIME, value);
     }
 
     /** No cards for the first few checks after starting or loading a game. */

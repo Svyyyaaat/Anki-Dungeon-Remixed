@@ -67,6 +67,16 @@ asked, and the card shows a *New card* note.
 | Passive search while walking | Hidden doors and traps the usual roll would find are only revealed after a passed card (at most one card per 15 turns) |
 | Active search | Pass widens the radius by 2 (3 when fast). Miss is a plain search |
 
+**Kanji drawing.** Writing (recall) cards of notes that carry their kanji's
+strokes, such as the [All in One Kanji](https://ankiweb.net/shared/info/1862058740)
+decks with their *Stroke Data* field (KanjiVG paths), are answered by drawing:
+the question shows above a drawing pad with ↶ / ↷ for single strokes, and
+*Check* compares the drawing stroke by stroke with the reference (order,
+direction and shape, wherever and however big it is drawn on the pad). A wrong
+verdict can be overruled with *Disagree*. Drawing cards have their own timer
+(*Time to draw*, 45 s by default) and the whole feature can be turned off with
+*Draw kanji*. The cards stay ordinary Anki cards, scheduled and synced by Anki.
+
 **Momentum.** Good answers in a row bank free checks, played at the score of
 the answer that banked them. Every trigger above builds and spends the same
 bank: a free check shows *Momentum!* instead of a card. A miss, or 20 turns

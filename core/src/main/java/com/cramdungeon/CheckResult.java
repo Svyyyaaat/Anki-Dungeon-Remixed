@@ -37,7 +37,8 @@ public class CheckResult {
             // nobody can know a card they've never seen: missing one plays out as if no card was asked
             return outcome.newCard ? SKIPPED : new CheckResult(false, false, 0f);
         }
-        float used = Math.min(1f, outcome.thinkTimeMs / (float) Math.max(1, thinkTimeLimitMs));
+        long limit = outcome.limitMs > 0 ? outcome.limitMs : thinkTimeLimitMs;
+        float used = Math.min(1f, outcome.thinkTimeMs / (float) Math.max(1, limit));
         float p = 1f - 0.5f * used;
         if (outcome.ease == CardOutcome.HARD) {
             p *= 0.8f;

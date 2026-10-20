@@ -17,6 +17,7 @@ import com.cramdungeon.AnkiDeck;
 import com.cramdungeon.AnkiPlatform;
 import com.cramdungeon.AnkiPrefs;
 import com.cramdungeon.CardTts;
+import com.cramdungeon.KanjiStrokes;
 import com.cramdungeon.CardMedia;
 import com.cramdungeon.CardOutcome;
 import com.cramdungeon.CardRequest;
@@ -103,6 +104,8 @@ public class AnkiDroidBridge implements AnkiPlatform {
         final int ord;
         // never studied; filled in when the card is rendered
         boolean isNew;
+        // thinking time for this card: drawing cards get their own
+        long limitMs;
 
         CardRef(long noteId, int ord) {
             this.noteId = noteId;
@@ -261,7 +264,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
                 }
                 answer(graded, ease, totalMs);
             });
-            post(() -> onDone.accept(CardOutcome.answered(ease, thinkMs, timedOut, graded.isNew)));
+            post(() -> onDone.accept(CardOutcome.answered(ease, thinkMs, timedOut, graded.isNew, graded.limitMs)));
         }
 
         @Override
@@ -277,7 +280,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
                     current = next;
                     lastCardKey = next.key();
                     String page = render(next, request, 0, true);
-                    onUiThread(() -> CardOverlay.replace(page, 0));
+                    onUiThread(() -> CardOverlay.replace(page, 0, next.limitMs));
                 } catch (Exception e) {
                     Log.e(TAG, "loading the next card failed", e);
                     onUiThread(CardOverlay::noOtherCards);
@@ -297,7 +300,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
                     current = back.card;
                     lastCardKey = back.card.key();
                     String page = render(back.card, request, back.elapsedMs, !skipped.isEmpty());
-                    onUiThread(() -> CardOverlay.replace(page, back.elapsedMs));
+                    onUiThread(() -> CardOverlay.replace(page, back.elapsedMs, back.card.limitMs));
                 } catch (Exception e) {
                     Log.e(TAG, "reloading a skipped card failed", e);
                     onUiThread(CardOverlay::noOtherCards);
@@ -326,7 +329,8 @@ public class AnkiDroidBridge implements AnkiPlatform {
 
             lastCardKey = session.current.key();
             final String page = html;
-            onUiThread(() -> CardOverlay.show(activity, media, page, request.thinkTimeMs, session));
+            final long limit = session.current.limitMs;
+            onUiThread(() -> CardOverlay.show(activity, media, page, limit, session));
         });
     }
 
@@ -577,6 +581,11 @@ public class AnkiDroidBridge implements AnkiPlatform {
             }
         }
         NoteType type = noteType(modelId);
+        Map<String, String> fields = new HashMap<>();
+        String[] values = (flds == null ? "" : flds).split("\u001f", -1);
+        for (int i = 0; i < type.fieldNames.length && i < values.length; i++) {
+            fields.put(type.fieldNames[i], values[i]);
+        }
 
         List<CardTts.Speech> questionTts = CardTts.none();
         List<CardTts.Speech> answerTts = CardTts.none();
@@ -584,11 +593,6 @@ public class AnkiDroidBridge implements AnkiPlatform {
         if (hasTts && AnkiPrefs.tts() && modelId != -1) {
             try {
                 String[] tmpl = template(modelId, type, type.cloze ? 0 : card.ord);
-                Map<String, String> fields = new HashMap<>();
-                String[] values = (flds == null ? "" : flds).split("\u001f", -1);
-                for (int i = 0; i < type.fieldNames.length && i < values.length; i++) {
-                    fields.put(type.fieldNames[i], values[i]);
-                }
                 int clozeOrd = type.cloze ? card.ord + 1 : 0;
                 questionTts = CardTts.side(tmpl[0], fields, CardTts.none(), clozeOrd, true);
                 answerTts = CardTts.side(tmpl[1], fields, questionTts, clozeOrd, false);
@@ -597,15 +601,24 @@ public class AnkiDroidBridge implements AnkiPlatform {
             }
         }
 
+        List<String> strokes = AnkiPrefs.drawKanji() ? KanjiStrokes.find(fields) : null;
+        if (strokes != null && !KanjiStrokes.isWritingCard(cardName(cardUri))) {
+            strokes = null;
+        }
+        card.limitMs = (strokes != null ? AnkiPrefs.drawTimeSeconds() : AnkiPrefs.thinkTimeSeconds()) * 1000L;
+
         JSONObject config = new JSONObject();
         config.put("title", request.title);
-        config.put("thinkMs", request.thinkTimeMs);
+        config.put("thinkMs", card.limitMs);
         config.put("simple", request.simpleGrading);
         config.put("startElapsedMs", startElapsedMs);
         config.put("canUndo", canUndo);
         config.put("missingMedia", missingMedia(question, answer));
         config.put("newCard", card.isNew);
         config.put("text", cardTexts());
+        if (strokes != null) {
+            config.put("draw", new JSONObject().put("strokes", new JSONArray(strokes)));
+        }
 
         return template()
                 .replace("%%CONFIG%%", config.toString())
@@ -617,7 +630,8 @@ public class AnkiDroidBridge implements AnkiPlatform {
     private static final String[] CARD_TEXTS = {
             "back", "bury", "suspend", "new_card", "honesty", "show_answer", "again", "again_sub", "hard",
             "good", "good_sub", "easy", "times_up", "continue", "continue_sub", "no_other", "image_missing",
-            "media_missing"};
+            "media_missing", "check", "draw_correct", "draw_wrong", "disagree", "disagree_sub", "draw_accepted",
+            "counts_good"};
 
     /** The card screen's own strings in the game's language. */
     private static JSONObject cardTexts() throws org.json.JSONException {
@@ -626,6 +640,15 @@ public class AnkiDroidBridge implements AnkiPlatform {
             text.put(key, Txt.get("card." + key));
         }
         return text;
+    }
+
+    /** The card template's name ("Recall", "Recognition", ...), or "" if AnkiDroid doesn't say. */
+    private String cardName(Uri cardUri) {
+        try (Cursor c = resolver().query(cardUri, new String[]{"card_name"}, null, null, null)) {
+            return c != null && c.moveToFirst() && c.getString(0) != null ? c.getString(0) : "";
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     /** Whether the card was never studied. Older AnkiDroid versions don't report it: then not new. */

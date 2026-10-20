@@ -27,6 +27,7 @@ public class FlashcardsTab extends Component {
     private CheckBox chkEnabled;
     private RedButton btnDeck;
     private OptionSlider optThink;
+    private OptionSlider optDraw;
     private CheckBox chkSimple;
     private CheckBox chkTts;
     private RedButton btnMedia;
@@ -84,6 +85,17 @@ public class FlashcardsTab extends Component {
         optThink.setSelectedValue(AnkiPrefs.thinkTimeSeconds() / THINK_STEP);
         add(optThink);
 
+        optDraw = new OptionSlider(Txt.get("tab.draw_time"),
+                AnkiPrefs.MIN_DRAW_TIME + "s", AnkiPrefs.MAX_DRAW_TIME + "s",
+                AnkiPrefs.MIN_DRAW_TIME / THINK_STEP, AnkiPrefs.MAX_DRAW_TIME / THINK_STEP) {
+            @Override
+            protected void onChange() {
+                AnkiPrefs.drawTimeSeconds(getSelectedValue() * THINK_STEP);
+            }
+        };
+        optDraw.setSelectedValue(AnkiPrefs.drawTimeSeconds() / THINK_STEP);
+        add(optDraw);
+
         chkSimple = new CheckBox(Txt.get("tab.simple")) {
             @Override
             protected void onClick() {
@@ -129,7 +141,18 @@ public class FlashcardsTab extends Component {
         addTrigger(Txt.get("tab.sneak"), AnkiPrefs.TRIGGER_SNEAK);
         addTrigger(Txt.get("tab.search"), AnkiPrefs.TRIGGER_SEARCH);
 
-        // not a trigger, but it fills the free slot of the grid
+        // not triggers, but they share the grid
+        CheckBox draw = new CheckBox(Txt.get("tab.draw")) {
+            @Override
+            protected void onClick() {
+                super.onClick();
+                AnkiPrefs.drawKanji(checked());
+            }
+        };
+        draw.checked(AnkiPrefs.drawKanji());
+        triggers.add(draw);
+        add(draw);
+
         CheckBox soft = new CheckBox(Txt.get("tab.soft_start")) {
             @Override
             protected void onClick() {
@@ -166,14 +189,20 @@ public class FlashcardsTab extends Component {
 
         chkEnabled.setRect(0, sep1.y + 1 + GAP, width, BTN_HEIGHT);
         btnDeck.setRect(0, chkEnabled.bottom() + GAP, width, BTN_HEIGHT);
-        optThink.setRect(0, btnDeck.bottom() + GAP, width, SLIDER_HEIGHT);
         // two columns when the window is wide enough
         boolean wide = width > 200;
         if (wide) {
-            chkSimple.setRect(0, optThink.bottom() + GAP, width / 2f - 1, BTN_HEIGHT);
+            optThink.setRect(0, btnDeck.bottom() + GAP, width / 2f - 1, SLIDER_HEIGHT);
+            optDraw.setRect(width / 2f + 1, optThink.top(), width / 2f - 1, SLIDER_HEIGHT);
+        } else {
+            optThink.setRect(0, btnDeck.bottom() + GAP, width, SLIDER_HEIGHT);
+            optDraw.setRect(0, optThink.bottom() + GAP, width, SLIDER_HEIGHT);
+        }
+        if (wide) {
+            chkSimple.setRect(0, optDraw.bottom() + GAP, width / 2f - 1, BTN_HEIGHT);
             chkTts.setRect(width / 2f + 1, chkSimple.top(), width / 2f - 1, BTN_HEIGHT);
         } else {
-            chkSimple.setRect(0, optThink.bottom() + GAP, width, BTN_HEIGHT);
+            chkSimple.setRect(0, optDraw.bottom() + GAP, width, BTN_HEIGHT);
             chkTts.setRect(0, chkSimple.bottom() + GAP, width, BTN_HEIGHT);
         }
         if (wide) {

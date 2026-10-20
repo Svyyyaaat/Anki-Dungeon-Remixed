@@ -250,6 +250,88 @@ button.snd:active {
 #content {
     overflow-wrap: anywhere;
 }
+
+/* kanji drawing: a square pad on the game's dark stone, the strokes in ink */
+#draw {
+    display: none;
+    margin-top: 8px;
+    align-items: stretch;
+    gap: 8px;
+}
+
+#pad {
+    flex: 0 0 auto;
+    width: min(calc(100% - 64px), 38vh);
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+    background: #f3ead2;
+    border: 3px solid #1d1e1a;
+    touch-action: none;
+}
+
+#pad svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+#pad .guide {
+    stroke: #c9bc9a;
+    stroke-width: 0.6;
+    stroke-dasharray: 2 2;
+    fill: none;
+}
+
+#pad .ink, #pad .ref {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+#pad .ink {
+    stroke: #241c10;
+    stroke-width: 4.5;
+}
+
+#pad .ink.ok {
+    stroke: #3f8f35;
+}
+
+#pad .ink.bad {
+    stroke: #c0392b;
+}
+
+#pad .ref {
+    stroke: rgba(36, 28, 16, 0.18);
+    stroke-width: 6;
+}
+
+#draw-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+#draw-tools .btn {
+    flex: 0 0 auto;
+    min-width: 48px;
+    font-size: 22px;
+}
+
+#result {
+    display: none;
+    margin-top: 6px;
+    font-size: 16px;
+    text-align: center;
+}
+
+#result.good {
+    color: var(--good);
+}
+
+#result.bad {
+    color: var(--bad);
+}
 </style>
 </head>
 <body class="card nightMode night_mode">
@@ -269,6 +351,20 @@ button.snd:active {
             <div id="question" class="card">%%QUESTION%%</div>
             <div id="answer" class="card">%%ANSWER%%</div>
         </div>
+        <div id="draw">
+            <div id="pad">
+                <svg id="pad-svg" viewBox="0 0 109 109" xmlns="http://www.w3.org/2000/svg">
+                    <path class="guide" d="M54.5,0V109M0,54.5H109"/>
+                    <g id="ref"></g>
+                    <g id="ink"></g>
+                </svg>
+            </div>
+            <div id="draw-tools">
+                <button class="btn grey" id="btn-undo">&#8630;</button>
+                <button class="btn grey" id="btn-redo">&#8631;</button>
+            </div>
+        </div>
+        <div id="result"></div>
         <div id="note"></div>
         <div id="media-note"></div>
         <div id="foot">
@@ -382,7 +478,11 @@ function gradeButtons() {
 }
 
 function questionButtons() {
-    setButtons([button(T("show_answer", "Show answer"), null, reveal)]);
+    if (DRAW) {
+        drawQuestionButtons();
+    } else {
+        setButtons([button(T("show_answer", "Show answer"), null, reveal)]);
+    }
 }
 
 /* card audio inside an element, in order: {f: file} for [sound:], {t, l, r} for TTS */
@@ -442,6 +542,13 @@ function showQuestion(elapsedMs) {
     el("question").style.display = "block";
     el("content").scrollTop = 0;
     note("");
+    if (DRAW) {
+        checked = false;
+        verdict = null;
+        el("ref").innerHTML = "";
+        el("result").style.display = "none";
+        renderInk();
+    }
     runClock(elapsedMs);
     questionButtons();
     updateTools();
@@ -455,6 +562,11 @@ function timeUp() {
     }
     timedOut = true;
     showAnswerSide();
+    if (DRAW) {
+        checked = true;
+        showReference();
+        renderInk();
+    }
     var title = el("title");
     title.className = "bad";
     title.textContent = T("times_up", "Time's up!");
@@ -478,6 +590,282 @@ function busy() {
     ["btn-back", "btn-bury", "btn-suspend"].forEach(function (id) { el(id).disabled = true; });
 }
 
+
+/* ---- kanji drawing (CONFIG.draw: {strokes: [svg path, ...]} in KanjiVG's 109-unit box) ---- */
+
+var DRAW = CONFIG.draw || null;
+var SAMPLES = 24;
+// how far a stroke may stray, in units of the 109-unit box (generous: fingers are not brushes)
+var MAX_MEAN_DIST = 16;
+var MAX_END_DIST = 26;
+
+var strokes = [];     // finished strokes: arrays of {x, y}
+var redoStack = [];
+var current = null;   // the stroke being drawn
+var checked = false;
+var verdict = null;   // {correct, mistakes, perStroke}
+
+function svgEl(name, attrs) {
+    var e = document.createElementNS("http://www.w3.org/2000/svg", name);
+    for (var k in attrs) {
+        e.setAttribute(k, attrs[k]);
+    }
+    return e;
+}
+
+function padPoint(ev) {
+    var svg = el("pad-svg");
+    var pt = svg.createSVGPoint();
+    pt.x = ev.clientX;
+    pt.y = ev.clientY;
+    var p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    return {x: p.x, y: p.y};
+}
+
+function pointsAttr(pts) {
+    return pts.map(function (p) { return p.x.toFixed(1) + "," + p.y.toFixed(1); }).join(" ");
+}
+
+function renderInk() {
+    var g = el("ink");
+    g.innerHTML = "";
+    strokes.forEach(function (s, i) {
+        var cls = "ink";
+        if (verdict && verdict.perStroke) {
+            cls += verdict.perStroke[i] ? " ok" : " bad";
+        }
+        g.appendChild(svgEl("polyline", {"class": cls, points: pointsAttr(s.length > 1 ? s : [s[0], s[0]])}));
+    });
+    if (current) {
+        g.appendChild(svgEl("polyline", {"class": "ink", points: pointsAttr(current)}));
+    }
+    el("btn-undo").disabled = checked || strokes.length === 0;
+    el("btn-redo").disabled = checked || redoStack.length === 0;
+}
+
+function showReference() {
+    var g = el("ref");
+    g.innerHTML = "";
+    DRAW.strokes.forEach(function (d) {
+        g.appendChild(svgEl("path", {"class": "ref", d: d}));
+    });
+}
+
+function startPad() {
+    var pad = el("pad");
+    pad.addEventListener("pointerdown", function (ev) {
+        if (checked || revealed) {
+            return;
+        }
+        ev.preventDefault();
+        pad.setPointerCapture(ev.pointerId);
+        current = [padPoint(ev)];
+        renderInk();
+    });
+    pad.addEventListener("pointermove", function (ev) {
+        if (!current) {
+            return;
+        }
+        ev.preventDefault();
+        var p = padPoint(ev);
+        var last = current[current.length - 1];
+        if (Math.abs(p.x - last.x) + Math.abs(p.y - last.y) > 0.8) {
+            current.push(p);
+            renderInk();
+        }
+    });
+    function end() {
+        if (!current) {
+            return;
+        }
+        strokes.push(current);
+        current = null;
+        redoStack = [];
+        renderInk();
+    }
+    pad.addEventListener("pointerup", end);
+    pad.addEventListener("pointercancel", end);
+
+    el("btn-undo").addEventListener("click", function () {
+        if (!checked && strokes.length) {
+            redoStack.push(strokes.pop());
+            renderInk();
+        }
+    });
+    el("btn-redo").addEventListener("click", function () {
+        if (!checked && redoStack.length) {
+            strokes.push(redoStack.pop());
+            renderInk();
+        }
+    });
+    renderInk();
+}
+
+/* points evenly spaced along a polyline */
+function resample(pts, n) {
+    if (pts.length === 1) {
+        var one = [];
+        for (var k = 0; k < n; k++) {
+            one.push(pts[0]);
+        }
+        return one;
+    }
+    var lens = [0];
+    for (var i = 1; i < pts.length; i++) {
+        lens.push(lens[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    }
+    var total = lens[lens.length - 1] || 1;
+    var out = [];
+    var j = 1;
+    for (var s = 0; s < n; s++) {
+        var t = total * s / (n - 1);
+        while (j < pts.length - 1 && lens[j] < t) {
+            j++;
+        }
+        var seg = lens[j] - lens[j - 1] || 1;
+        var f = Math.min(1, Math.max(0, (t - lens[j - 1]) / seg));
+        out.push({x: pts[j - 1].x + (pts[j].x - pts[j - 1].x) * f, y: pts[j - 1].y + (pts[j].y - pts[j - 1].y) * f});
+    }
+    return out;
+}
+
+/* the reference strokes as point lists, measured by the browser's own SVG geometry */
+function referencePoints() {
+    var svg = el("pad-svg");
+    return DRAW.strokes.map(function (d) {
+        var path = svgEl("path", {d: d});
+        svg.appendChild(path);
+        var len = path.getTotalLength();
+        var pts = [];
+        for (var i = 0; i < SAMPLES; i++) {
+            var p = path.getPointAtLength(len * i / (SAMPLES - 1));
+            pts.push({x: p.x, y: p.y});
+        }
+        svg.removeChild(path);
+        return pts;
+    });
+}
+
+function bounds(lists) {
+    var b = {x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity};
+    lists.forEach(function (pts) {
+        pts.forEach(function (p) {
+            b.x0 = Math.min(b.x0, p.x); b.y0 = Math.min(b.y0, p.y);
+            b.x1 = Math.max(b.x1, p.x); b.y1 = Math.max(b.y1, p.y);
+        });
+    });
+    return b;
+}
+
+function meanDist(a, b) {
+    var sum = 0;
+    for (var i = 0; i < a.length; i++) {
+        sum += Math.hypot(a[i].x - b[i].x, a[i].y - b[i].y);
+    }
+    return sum / a.length;
+}
+
+/*
+ * Stroke by stroke, in order: the drawing is moved and scaled onto the reference
+ * (so size and position on the pad don't matter), then each stroke must follow
+ * its reference closely enough, start and end near its ends, and run the right way.
+ */
+function judge() {
+    var ref = referencePoints();
+    if (!strokes.length) {
+        return {correct: false, mistakes: ref.length, perStroke: []};
+    }
+    var rb = bounds(ref);
+    var ub = bounds(strokes);
+    var rs = Math.max(rb.x1 - rb.x0, rb.y1 - rb.y0) || 1;
+    var us = Math.max(ub.x1 - ub.x0, ub.y1 - ub.y0) || 1;
+    var scale = Math.min(3, Math.max(0.33, rs / us));
+    var rcx = (rb.x0 + rb.x1) / 2, rcy = (rb.y0 + rb.y1) / 2;
+    var ucx = (ub.x0 + ub.x1) / 2, ucy = (ub.y0 + ub.y1) / 2;
+
+    var perStroke = [];
+    var mistakes = Math.abs(strokes.length - ref.length);
+    strokes.forEach(function (s, i) {
+        if (i >= ref.length) {
+            perStroke.push(false);
+            return;
+        }
+        var u = resample(s.map(function (p) {
+            return {x: rcx + (p.x - ucx) * scale, y: rcy + (p.y - ucy) * scale};
+        }), SAMPLES);
+        var r = ref[i];
+        var d = meanDist(u, r);
+        var reversed = meanDist(u, r.slice().reverse());
+        var startD = Math.hypot(u[0].x - r[0].x, u[0].y - r[0].y);
+        var endD = Math.hypot(u[SAMPLES - 1].x - r[SAMPLES - 1].x, u[SAMPLES - 1].y - r[SAMPLES - 1].y);
+        var ok = d <= MAX_MEAN_DIST && startD <= MAX_END_DIST && endD <= MAX_END_DIST && d <= reversed + 2;
+        perStroke.push(ok);
+        if (!ok) {
+            mistakes++;
+        }
+    });
+    return {correct: mistakes === 0, mistakes: mistakes, perStroke: perStroke};
+}
+
+function showResult(text, good) {
+    var r = el("result");
+    r.textContent = text;
+    r.className = good ? "good" : "bad";
+    r.style.display = "block";
+}
+
+function correctButtons() {
+    if (CONFIG.simple) {
+        setButtons([button(T("continue", "Continue"), T("counts_good", "counts as Good"), function () { grade(3); })]);
+    } else {
+        setButtons([
+            button(T("hard", "Hard"), null, function () { grade(2); }),
+            button(T("good", "Good"), null, function () { grade(3); }),
+            button(T("easy", "Easy"), null, function () { grade(4); })
+        ]);
+    }
+}
+
+function check() {
+    if (revealed) {
+        return;
+    }
+    checked = true;
+    verdict = judge();
+    AnkiBridge.reveal();
+    revealed = true;
+    freezeClock();
+    showReference();
+    renderInk();
+    el("answer").style.display = "block";
+    el("question").style.display = "none";
+    el("content").scrollTop = 0;
+    updateTools();
+    lock();
+    play(answerOnlySounds());
+    if (verdict.correct) {
+        showResult(T("draw_correct", "Correct!"), true);
+        correctButtons();
+    } else {
+        showResult(T("draw_wrong", "Not quite") + (strokes.length !== DRAW.strokes.length
+                ? " (" + strokes.length + " / " + DRAW.strokes.length + ")" : ""), false);
+        setButtons([
+            button(T("continue", "Continue"), T("continue_sub", "counts as Again"), function () { grade(1); }),
+            button(T("disagree", "Disagree"), T("disagree_sub", "count it correct"), function () {
+                verdict = {correct: true, perStroke: null};
+                renderInk();
+                showResult(T("draw_accepted", "Counted as correct"), true);
+                correctButtons();
+                lock();
+            })
+        ]);
+    }
+}
+
+function drawQuestionButtons() {
+    setButtons([button(T("check", "Check"), null, check)]);
+}
+
 (function init() {
     el("title").textContent = CONFIG.title;
     Array.prototype.forEach.call(document.querySelectorAll("[data-t]"), function (node) {
@@ -496,6 +884,11 @@ function busy() {
 
     if (CONFIG.newCard) {
         el("new-card").style.display = "block";
+    }
+
+    if (DRAW) {
+        el("draw").style.display = "flex";
+        startPad();
     }
 
     if (CONFIG.missingMedia > 0) {
