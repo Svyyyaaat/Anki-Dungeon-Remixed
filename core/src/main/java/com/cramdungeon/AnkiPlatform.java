@@ -36,6 +36,9 @@ public interface AnkiPlatform {
 
     void clearMedia(Runnable onDone);
 
+    /** Sends AnkiDroid the answers it failed to record again; reports how many it still hasn't. */
+    void retryUnsaved(Consumer<Integer> onDone);
+
     /** Drops any session state tied to the previous deck. */
     void deckChanged();
 

@@ -38,6 +38,10 @@ public final class AnkiCheck {
     private static boolean kanjiLookedUp;
     // "Continue without cards": off until the player leaves this game
     private static volatile boolean pausedThisSession;
+    // AnkiDroid lost answers: no cards until they are saved, so no more reviews get lost
+    private static volatile boolean savePaused;
+    // the player went to AnkiDroid from the warning: try saving again on the next check
+    private static volatile boolean retryOnNextCheck;
     private static int softStartLeft;
     private static boolean setupOffered;
 
@@ -71,7 +75,8 @@ public final class AnkiCheck {
         if (platform == null || Dungeon.hero == null || !Dungeon.hero.isAlive()) {
             return false;
         }
-        if (!AnkiPrefs.enabled() || !AnkiPrefs.trigger(kind.triggerKey) || exhausted || pausedThisSession) {
+        if (!AnkiPrefs.enabled() || !AnkiPrefs.trigger(kind.triggerKey) || exhausted || pausedThisSession
+                || savePaused) {
             return false;
         }
         if (platform.status() != AnkiPlatform.Status.READY || !AnkiPrefs.hasDeck()) {
@@ -113,6 +118,11 @@ public final class AnkiCheck {
             }
             next = queue.peek();
             showing = true;
+        }
+
+        if (savePaused && retryOnNextCheck) {
+            retryOnNextCheck = false;
+            retrySaving();
         }
 
         if (!active(next.kind)) {
@@ -282,6 +292,8 @@ public final class AnkiCheck {
      */
     public static void newSession() {
         pausedThisSession = false;
+        savePaused = false;
+        retryOnNextCheck = false;
         synchronized (AnkiCheck.class) {
             setupOffered = false;
             softStartLeft = AnkiPrefs.softStart() ? SOFT_START_CHECKS : 0;
@@ -294,6 +306,50 @@ public final class AnkiCheck {
             // the day may have changed since: start again from AnkiDroid's current queue
             platform.deckChanged();
         }
+    }
+
+    /**
+     * AnkiDroid didn't record {@code count} answers (it hit an error of its own). Cards pause and
+     * the player is told, instead of playing on while their reviews go nowhere.
+     */
+    public static void answersNotSaved(int count) {
+        synchronized (AnkiCheck.class) {
+            if (savePaused) {
+                return; // already showing the warning
+            }
+            savePaused = true;
+        }
+        show(() -> new WndOptions(Txt.get("unsaved.title"),
+                Txt.get("unsaved.text", count),
+                Txt.get("unsaved.retry"),
+                Txt.get("unsaved.open"),
+                Txt.get("done.continue")) {
+            @Override
+            protected void onSelect(int index) {
+                if (index == 0) {
+                    retrySaving();
+                } else if (index == 1) {
+                    retryOnNextCheck = true;
+                    platform.openAnkiDroid();
+                } else {
+                    // the answers stay queued: they are tried again when the next game starts
+                    savePaused = false;
+                    continueWithoutCards();
+                }
+            }
+        });
+    }
+
+    private static void retrySaving() {
+        platform.retryUnsaved(left -> {
+            if (left == 0) {
+                savePaused = false;
+                GLog.p(Txt.get("log.saved"));
+            } else {
+                savePaused = false;
+                answersNotSaved(left);
+            }
+        });
     }
 
     /** Plays on without cards until the player leaves this game; the setting stays on. */

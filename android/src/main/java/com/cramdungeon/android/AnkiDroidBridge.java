@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.SystemClock;
 import android.util.Log;
 
+import com.cramdungeon.AnkiCheck;
 import com.cramdungeon.AnkiDeck;
 import com.cramdungeon.AnkiPlatform;
 import com.cramdungeon.AnkiPrefs;
@@ -36,6 +37,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -323,6 +325,15 @@ public class AnkiDroidBridge implements AnkiPlatform {
     public void presentCard(long deckId, CardRequest request, Consumer<CardOutcome> onDone) {
         io.execute(() -> {
             Session session = new Session(deckId, request, onDone);
+            if (!unsaved.isEmpty() && saveUnsaved() > 0) {
+                // AnkiDroid still won't take them: no new cards until it does
+                final int left = unsaved.size();
+                post(() -> {
+                    AnkiCheck.answersNotSaved(left);
+                    onDone.accept(CardOutcome.skipped());
+                });
+                return;
+            }
             String html;
             try {
                 session.current = nextCard(deckId, new HashSet<>());
@@ -873,30 +884,129 @@ public class AnkiDroidBridge implements AnkiPlatform {
         }
     }
 
-    private void buryOrSuspend(CardRef card, String action) {
+    // --- writing answers back. AnkiDroid catches its own errors while answering (it shows its
+    // crash report notice) and still reports the card as updated, so every write is checked by
+    // reading the card back: a real answer always adds a review, a bury/suspend takes it out of the queue.
+
+    // writes AnkiDroid didn't record; tried again before the next card, or from the warning window
+    private final List<Unsaved> unsaved = new ArrayList<>();
+
+    private static class Unsaved {
+        final CardRef card;
+        final String action; // null: an answer
+        final int ease;
+        final long totalMs;
+        // the card as it was before the write; if it changes, AnkiDroid got it after all
+        final long[] before;
+
+        Unsaved(CardRef card, String action, int ease, long totalMs, long[] before) {
+            this.card = card;
+            this.action = action;
+            this.ease = ease;
+            this.totalMs = totalMs;
+            this.before = before;
+        }
+    }
+
+    private static final int STATE_QUEUE = 2;
+    private static final long SAVE_RETRY_DELAY_MS = 800;
+
+    /** {reps, type, queue, due} of the card (reps -1 on AnkiDroid versions without it), or null if unreadable. */
+    private long[] cardState(CardRef card) {
+        Uri cardUri = Uri.withAppendedPath(Uri.withAppendedPath(
+                Uri.withAppendedPath(NOTES, Long.toString(card.noteId)), "cards"), Integer.toString(card.ord));
+        try (Cursor c = resolver().query(cardUri, new String[]{"reps", "type", "queue", "due"}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                return new long[]{c.getLong(0), c.getLong(1), c.getLong(2), c.getLong(3)};
+            }
+            return null;
+        } catch (Exception e) {
+            // older AnkiDroid: no reps column
+        }
+        try (Cursor c = resolver().query(cardUri, new String[]{"type", "queue", "due"}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                return new long[]{-1, c.getLong(0), c.getLong(1), c.getLong(2)};
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "reading the state of card " + card.key() + " failed", e);
+        }
+        return null;
+    }
+
+    /** True if the card shows the write: changed since {@code before}, or out of the queue for a bury/suspend. */
+    private static boolean recorded(String action, long[] before, long[] after) {
+        if (before == null || after == null) {
+            return true; // can't tell on this AnkiDroid: trust it
+        }
+        return action == null ? !Arrays.equals(before, after) : after[STATE_QUEUE] < 0;
+    }
+
+    private boolean write(CardRef card, String action, int ease, long totalMs, long[] before) {
         ContentValues values = new ContentValues();
         values.put("note_id", card.noteId);
         values.put("ord", card.ord);
-        values.put(CardOverlay.SUSPEND.equals(action) ? "suspended" : "buried", 1);
+        if (action == null) {
+            values.put("answer_ease", ease);
+            values.put("time_taken", totalMs);
+        } else {
+            values.put(CardOverlay.SUSPEND.equals(action) ? "suspended" : "buried", 1);
+        }
         try {
             resolver().update(SCHEDULE, values, null, null);
         } catch (Exception e) {
-            Log.e(TAG, action + " of card " + card.key() + " failed", e);
+            Log.e(TAG, (action == null ? "answering" : action) + " card " + card.key() + " failed", e);
         }
+        return recorded(action, before, cardState(card));
+    }
+
+    /** Answers ({@code action} null), buries or suspends the card; if AnkiDroid loses it, keeps it and warns. */
+    private void save(CardRef card, String action, int ease, long totalMs) {
+        long[] before = cardState(card);
+        if (write(card, action, ease, totalMs, before)) {
+            return;
+        }
+        // AnkiDroid may be restarting after its error: give it a moment, then once more
+        SystemClock.sleep(SAVE_RETRY_DELAY_MS);
+        if (recorded(action, before, cardState(card)) || write(card, action, ease, totalMs, before)) {
+            return;
+        }
+        Log.e(TAG, "AnkiDroid didn't record " + (action == null ? "the answer to" : action + " of")
+                + " card " + card.key());
+        unsaved.add(new Unsaved(card, action, ease, totalMs, before));
+        // the batch may be out of step with AnkiDroid now
+        queue.clear();
+        final int left = unsaved.size();
+        post(() -> AnkiCheck.answersNotSaved(left));
+    }
+
+    /** Tries the unsaved writes again; returns how many AnkiDroid still hasn't recorded. */
+    private int saveUnsaved() {
+        for (int i = unsaved.size() - 1; i >= 0; i--) {
+            Unsaved u = unsaved.get(i);
+            // changed meanwhile (answered in AnkiDroid itself, or our write landed late): leave it be
+            if (recorded(u.action, u.before, cardState(u.card))
+                    || write(u.card, u.action, u.ease, u.totalMs, u.before)) {
+                unsaved.remove(i);
+            }
+        }
+        return unsaved.size();
+    }
+
+    @Override
+    public void retryUnsaved(Consumer<Integer> onDone) {
+        io.execute(() -> {
+            final int left = saveUnsaved();
+            post(() -> onDone.accept(left));
+        });
+    }
+
+    private void buryOrSuspend(CardRef card, String action) {
+        save(card, action, 0, 0);
     }
 
     private void answer(CardRef card, int ease, long totalMs) {
         answered.add(card.key());
-        ContentValues values = new ContentValues();
-        values.put("note_id", card.noteId);
-        values.put("ord", card.ord);
-        values.put("answer_ease", ease);
-        values.put("time_taken", totalMs);
-        try {
-            resolver().update(SCHEDULE, values, null, null);
-        } catch (Exception e) {
-            Log.e(TAG, "answering card " + card.key() + " failed", e);
-        }
+        save(card, null, ease, totalMs);
     }
 
     private String template() throws IOException {
