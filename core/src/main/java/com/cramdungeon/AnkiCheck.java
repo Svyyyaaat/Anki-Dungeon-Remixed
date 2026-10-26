@@ -5,6 +5,7 @@ import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.TitleScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndMessage;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.watabou.noosa.Game;
 
@@ -338,6 +339,11 @@ public final class AnkiCheck {
                 }
             }
         });
+    }
+
+    /** AnkiDroid went back to an earlier state and lost answers it had taken; they were sent again. */
+    public static void answersResent(int count) {
+        show(() -> new WndMessage(Txt.get("resent.text", count)));
     }
 
     private static void retrySaving() {

@@ -6,6 +6,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
@@ -325,6 +326,7 @@ public class AnkiDroidBridge implements AnkiPlatform {
     public void presentCard(long deckId, CardRequest request, Consumer<CardOutcome> onDone) {
         io.execute(() -> {
             Session session = new Session(deckId, request, onDone);
+            checkSentAnswers();
             if (!unsaved.isEmpty() && saveUnsaved() > 0) {
                 // AnkiDroid still won't take them: no new cards until it does
                 final int left = unsaved.size();
@@ -941,6 +943,9 @@ public class AnkiDroidBridge implements AnkiPlatform {
         return action == null ? !Arrays.equals(before, after) : after[STATE_QUEUE] < 0;
     }
 
+    // the card's state right after the last write()
+    private long[] lastAfter;
+
     private boolean write(CardRef card, String action, int ease, long totalMs, long[] before) {
         ContentValues values = new ContentValues();
         values.put("note_id", card.noteId);
@@ -956,18 +961,26 @@ public class AnkiDroidBridge implements AnkiPlatform {
         } catch (Exception e) {
             Log.e(TAG, (action == null ? "answering" : action) + " card " + card.key() + " failed", e);
         }
-        return recorded(action, before, cardState(card));
+        lastAfter = cardState(card);
+        return recorded(action, before, lastAfter);
     }
 
     /** Answers ({@code action} null), buries or suspends the card; if AnkiDroid loses it, keeps it and warns. */
     private void save(CardRef card, String action, int ease, long totalMs) {
         long[] before = cardState(card);
         if (write(card, action, ease, totalMs, before)) {
+            remember(card, action, ease, totalMs, before, lastAfter);
             return;
         }
         // AnkiDroid may be restarting after its error: give it a moment, then once more
         SystemClock.sleep(SAVE_RETRY_DELAY_MS);
-        if (recorded(action, before, cardState(card)) || write(card, action, ease, totalMs, before)) {
+        long[] now = cardState(card);
+        if (recorded(action, before, now)) {
+            remember(card, action, ease, totalMs, before, now);
+            return;
+        }
+        if (write(card, action, ease, totalMs, before)) {
+            remember(card, action, ease, totalMs, before, lastAfter);
             return;
         }
         Log.e(TAG, "AnkiDroid didn't record " + (action == null ? "the answer to" : action + " of")
@@ -984,12 +997,165 @@ public class AnkiDroidBridge implements AnkiPlatform {
         for (int i = unsaved.size() - 1; i >= 0; i--) {
             Unsaved u = unsaved.get(i);
             // changed meanwhile (answered in AnkiDroid itself, or our write landed late): leave it be
-            if (recorded(u.action, u.before, cardState(u.card))
-                    || write(u.card, u.action, u.ease, u.totalMs, u.before)) {
+            if (recorded(u.action, u.before, cardState(u.card))) {
+                unsaved.remove(i);
+            } else if (write(u.card, u.action, u.ease, u.totalMs, u.before)) {
+                remember(u.card, u.action, u.ease, u.totalMs, u.before, lastAfter);
                 unsaved.remove(i);
             }
         }
         return unsaved.size();
+    }
+
+    // --- answers AnkiDroid takes and loses again. AnkiDroid can hold a transaction of its own
+    // open around ours; when it rolls that back (or replaces the collection in a full sync) the
+    // answers vanish although they read back fine at the time. The game keeps a log of what it
+    // sent and, before each card, checks the latest answers are still there; if AnkiDroid went
+    // back in time, the lost answers are sent again.
+
+    private static final String JOURNAL_PREFS = "cram_sent_answers";
+    private static final String JOURNAL_KEY = "sent";
+    private static final long JOURNAL_KEEP_MS = 2L * 24 * 60 * 60 * 1000;
+    private static final int JOURNAL_MAX = 1500;
+    // the latest answers looked at before each card; a rollback always takes the latest with it
+    private static final int JOURNAL_QUICK_CHECK = 3;
+
+    private List<Sent> journal;
+
+    private static class Sent {
+        final CardRef card;
+        final int ease;
+        final long totalMs;
+        final long at;
+        final long[] before;
+        long[] after;
+
+        Sent(CardRef card, int ease, long totalMs, long at, long[] before, long[] after) {
+            this.card = card;
+            this.ease = ease;
+            this.totalMs = totalMs;
+            this.at = at;
+            this.before = before;
+            this.after = after;
+        }
+
+        /** Lost: the card has fewer reviews than right after this answer. */
+        boolean lost(long[] now) {
+            return now != null && now[0] >= 0 && now[0] < after[0];
+        }
+
+        /** The card is back exactly where it was before this answer (reviews, type, queue). */
+        boolean backToBefore(long[] now) {
+            return now != null && now[0] == before[0] && now[1] == before[1] && now[2] == before[2];
+        }
+    }
+
+    private SharedPreferences journalPrefs() {
+        return activity.getSharedPreferences(JOURNAL_PREFS, Context.MODE_PRIVATE);
+    }
+
+    private List<Sent> journal() {
+        if (journal == null) {
+            journal = new ArrayList<>();
+            try {
+                JSONArray all = new JSONArray(journalPrefs().getString(JOURNAL_KEY, "[]"));
+                long oldest = System.currentTimeMillis() - JOURNAL_KEEP_MS;
+                for (int i = 0; i < all.length(); i++) {
+                    JSONArray e = all.getJSONArray(i);
+                    if (e.getLong(4) < oldest) {
+                        continue;
+                    }
+                    long[] before = new long[4];
+                    long[] after = new long[4];
+                    for (int k = 0; k < 4; k++) {
+                        before[k] = e.getLong(5 + k);
+                        after[k] = e.getLong(9 + k);
+                    }
+                    journal.add(new Sent(new CardRef(e.getLong(0), e.getInt(1)), e.getInt(2), e.getLong(3),
+                            e.getLong(4), before, after));
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "reading the sent answers failed", e);
+            }
+        }
+        return journal;
+    }
+
+    private void storeJournal() {
+        JSONArray all = new JSONArray();
+        for (Sent e : journal()) {
+            JSONArray a = new JSONArray();
+            a.put(e.card.noteId).put(e.card.ord).put(e.ease).put(e.totalMs).put(e.at);
+            for (long v : e.before) {
+                a.put(v);
+            }
+            for (long v : e.after) {
+                a.put(v);
+            }
+            all.put(a);
+        }
+        journalPrefs().edit().putString(JOURNAL_KEY, all.toString()).apply();
+    }
+
+    /** Logs an answer AnkiDroid took; only where it reports reviews, so a loss can be told apart. */
+    private void remember(CardRef card, String action, int ease, long totalMs, long[] before, long[] after) {
+        if (action != null || before == null || after == null || after[0] < 0) {
+            return;
+        }
+        List<Sent> log = journal();
+        log.add(new Sent(card, ease, totalMs, System.currentTimeMillis(), before, after));
+        long oldest = System.currentTimeMillis() - JOURNAL_KEEP_MS;
+        while (!log.isEmpty() && (log.size() > JOURNAL_MAX || log.get(0).at < oldest)) {
+            log.remove(0);
+        }
+        storeJournal();
+    }
+
+    /** Looks at the latest answers; if AnkiDroid lost them, sends every lost one again and says so. */
+    private void checkSentAnswers() {
+        List<Sent> log = journal();
+        boolean lost = false;
+        Set<String> seen = new HashSet<>();
+        for (int i = log.size() - 1; i >= 0 && seen.size() < JOURNAL_QUICK_CHECK; i--) {
+            Sent e = log.get(i);
+            if (seen.add(e.card.key()) && e.lost(cardState(e.card))) {
+                lost = true;
+                break;
+            }
+        }
+        if (!lost) {
+            return;
+        }
+        Log.w(TAG, "AnkiDroid lost answers it had taken; sending them again");
+        // oldest first, so a card answered twice gets its answers back in order
+        Set<String> waiting = new HashSet<>();
+        for (Unsaved u : unsaved) {
+            waiting.add(u.card.key());
+        }
+        int resent = 0;
+        for (Sent e : log) {
+            long[] now = cardState(e.card);
+            // only cards back exactly where they were before the answer; anything else changed
+            // some other way since (e.g. in AnkiDroid itself) and is left alone
+            if (!e.lost(now) || !e.backToBefore(now) || waiting.contains(e.card.key())) {
+                continue;
+            }
+            if (write(e.card, null, e.ease, e.totalMs, now)) {
+                e.after = lastAfter;
+                resent++;
+            } else {
+                unsaved.add(new Unsaved(e.card, null, e.ease, e.totalMs, now));
+                waiting.add(e.card.key());
+            }
+        }
+        storeJournal();
+        // the batch was built from the newer state
+        queue.clear();
+        answered.clear();
+        if (resent > 0) {
+            final int count = resent;
+            post(() -> AnkiCheck.answersResent(count));
+        }
     }
 
     @Override
