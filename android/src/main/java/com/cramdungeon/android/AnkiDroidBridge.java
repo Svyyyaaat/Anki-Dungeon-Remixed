@@ -937,8 +937,11 @@ public class AnkiDroidBridge implements AnkiPlatform {
 
     /** True if the card shows the write: changed since {@code before}, or out of the queue for a bury/suspend. */
     private static boolean recorded(String action, long[] before, long[] after) {
-        if (before == null || after == null) {
+        if (before == null) {
             return true; // can't tell on this AnkiDroid: trust it
+        }
+        if (after == null) {
+            return false; // readable a moment ago: AnkiDroid's collection is closed (e.g. syncing)
         }
         return action == null ? !Arrays.equals(before, after) : after[STATE_QUEUE] < 0;
     }
@@ -992,10 +995,23 @@ public class AnkiDroidBridge implements AnkiPlatform {
         post(() -> AnkiCheck.answersNotSaved(left));
     }
 
+    /** True if AnkiDroid answers queries at all, i.e. its collection is open. */
+    private boolean collectionReadable() {
+        try (Cursor c = resolver().query(DECKS, null, null, null, null)) {
+            return c != null && c.moveToFirst();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** Tries the unsaved writes again; returns how many AnkiDroid still hasn't recorded. */
     private int saveUnsaved() {
         for (int i = unsaved.size() - 1; i >= 0; i--) {
             Unsaved u = unsaved.get(i);
+            if (cardState(u.card) == null && collectionReadable()) {
+                unsaved.remove(i); // the card is gone (deleted in AnkiDroid): nothing to save
+                continue;
+            }
             // changed meanwhile (answered in AnkiDroid itself, or our write landed late): leave it be
             if (recorded(u.action, u.before, cardState(u.card))) {
                 unsaved.remove(i);
